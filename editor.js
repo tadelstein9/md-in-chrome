@@ -123,7 +123,7 @@ async function openHandle(h) {
   await remember(h);
   bar.name.textContent = h.name;
   bar.save.hidden = false;
-  document.getElementById("selectall").hidden = false;
+  document.getElementById("copyall").hidden = false;
   welcome.hidden = true;
   docEl.hidden = false;
   bar.status.textContent = `${blocks.length} blocks · no changes`;
@@ -224,27 +224,32 @@ async function save() {
 
 bar.save.addEventListener("click", save);
 
-// Select the whole document.
+// Put the whole document on the clipboard.
 //
-// A block being edited is a contenteditable element, and while it holds the
-// focus Chrome throws away a selection set across anything outside it — which
-// is why the first two attempts gave one block and then nothing at all. Let go
-// of the focus, wait for the browser to act on that, then set the range.
-function selectWholeDocument() {
-  const active = document.activeElement;
-  if (active && typeof active.blur === "function") active.blur();
-  requestAnimationFrame(() => {
-    const range = document.createRange();
-    range.selectNodeContents(docEl);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-    const words = docEl.innerText.trim().split(/\s+/).length;
-    bar.status.textContent = `selected the whole document — ${words.toLocaleString()} words`;
-  });
+// Selecting it does not work and cannot be made to: every paragraph is its own
+// editable region, and a browser will not carry one selection across separate
+// editable regions. Select-all gave one paragraph, then nothing. So skip the
+// selection — build the clean HTML and hand it to the clipboard directly.
+async function copyWholeDocument() {
+  const holder = docEl.cloneNode(true);
+  scrubAttributes(holder);
+  const html = holder.innerHTML;
+  const text = docEl.innerText;
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        "text/html": new Blob([html], { type: "text/html" }),
+        "text/plain": new Blob([text], { type: "text/plain" }),
+      }),
+    ]);
+    const words = text.trim().split(/\s+/).length;
+    bar.status.textContent = `copied — ${words.toLocaleString()} words, paste anywhere`;
+  } catch (err) {
+    bar.status.textContent = `copy failed: ${err.message}`;
+  }
 }
 
-document.getElementById("selectall").addEventListener("click", selectWholeDocument);
+document.getElementById("copyall").addEventListener("click", copyWholeDocument);
 
 document.addEventListener("keydown", (e) => {
   if (!(e.ctrlKey || e.metaKey)) return;
@@ -252,13 +257,11 @@ document.addEventListener("keydown", (e) => {
 
   if (key === "s") { e.preventDefault(); save(); return; }
 
-  // Select all means all. The first version left Ctrl+A alone inside a block,
-  // on the theory that in an editor it means select this paragraph. It doesn't:
-  // click into a paragraph, press Ctrl+A to copy the article out, and you get
-  // one paragraph. Whole document, wherever the cursor is.
+  // Ctrl+A cannot select across separate editable regions, so it copies the
+  // whole document instead — which is what a person pressing it here wants.
   if (key === "a") {
     e.preventDefault();
-    selectWholeDocument();
+    copyWholeDocument();
   }
 });
 
@@ -271,16 +274,22 @@ document.addEventListener("keydown", (e) => {
 
 const KEEP = { A: ["href"], IMG: ["src", "alt"], TD: ["colspan", "rowspan"], TH: ["colspan", "rowspan"] };
 
+// Strip everything the editor added, keep what is the document.
+function scrubAttributes(node) {
+  for (const el of node.querySelectorAll("#bar")) el.remove();
+  for (const el of node.querySelectorAll("*")) {
+    const keep = KEEP[el.tagName] || [];
+    for (const attr of [...el.attributes]) if (!keep.includes(attr.name)) el.removeAttribute(attr.name);
+  }
+  return node;
+}
+
 document.addEventListener("copy", (e) => {
   const sel = window.getSelection();
   if (!sel.rangeCount || sel.isCollapsed) return;
   const holder = document.createElement("div");
   for (let i = 0; i < sel.rangeCount; i++) holder.appendChild(sel.getRangeAt(i).cloneContents());
-  for (const el of holder.querySelectorAll("#bar")) el.remove();
-  for (const el of holder.querySelectorAll("*")) {
-    const keep = KEEP[el.tagName] || [];
-    for (const attr of [...el.attributes]) if (!keep.includes(attr.name)) el.removeAttribute(attr.name);
-  }
+  scrubAttributes(holder);
   e.clipboardData.setData("text/html", holder.innerHTML);
   e.clipboardData.setData("text/plain", sel.toString());
   e.preventDefault();

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Markdown in Chrome</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+
+<div id="bar">
+  <button id="open">Open a markdown file</button>
+  <span id="name"></span>
+  <span id="status">nothing open</span>
+  <button id="save" hidden>Save <kbd>Ctrl+S</kbd></button>
+</div>
+
+<main id="doc" hidden></main>
+
+<section id="welcome">
+  <h1>Markdown in Chrome</h1>
+  <p>A model hands you a file full of pound signs and asterisks. Open it here and
+     read it the way it is meant to look — headings as headings, tables as tables.
+     Fix what you find while you are looking at it. <kbd>Ctrl+S</kbd> writes your
+     changes back to the same file on your disk.</p>
+  <p>Only the paragraphs you actually touch get rewritten. Everything else is
+     saved exactly as it arrived, character for character.</p>
+  <p id="recent-wrap" hidden>Recently opened:</p>
+  <ul id="recent"></ul>
+  <p class="fine">Your file never leaves your computer. This page has no network
+     access and stores nothing but a pointer to files you opened.</p>
+</section>
+
+<script type="module" src="editor.js"></script>
+</body>
+</html>

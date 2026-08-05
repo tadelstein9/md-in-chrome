@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Markdown in Chrome",
+  "version": "0.1.0",
+  "description": "Open a markdown file, read it the way it will look, fix what you find, and save it back to the same file.",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open a markdown file"
+  },
+  "icons": {
+    "128": "icons/icon128.png"
+  }
+}

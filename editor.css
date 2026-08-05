@@ -1,0 +1,77 @@
+:root {
+  --ink: #1a1a1a;
+  --dim: #6b6b6b;
+  --rule: #e2ded7;
+  --bg: #fdfcfa;
+  --panel: #1a1a1a;
+  --accent: #ffd54a;
+  --edited: #c9a227;
+  --live: #fffbe6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e9e7e3; --dim: #99958d; --rule: #37342f; --bg: #191817;
+    --panel: #0f0f0e; --accent: #ffd54a; --edited: #d8b446; --live: #2a2618;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 17px/1.6 Georgia, "Iowan Old Style", serif;
+}
+
+/* The bar carries no document text, and user-select keeps a drag off it.
+   A select-all is handled in editor.js, which sets the range to the document
+   itself — CSS alone does not keep select-all out. */
+#bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+  display: flex; align-items: center; gap: .75rem;
+  padding: .55rem 1rem;
+  background: var(--panel); color: #eee;
+  font: 13px/1.4 -apple-system, system-ui, Helvetica, Arial, sans-serif;
+  -webkit-user-select: none; user-select: none;
+}
+#bar button {
+  font: inherit; padding: .3rem .7rem; border-radius: 4px;
+  border: 1px solid #555; background: #2a2a28; color: #eee; cursor: pointer;
+}
+#bar button:hover { background: #3a3a37; }
+#name { color: var(--accent); font-weight: 600; }
+#status { color: #bbb; margin-left: auto; }
+kbd {
+  font: 11px/1 ui-monospace, monospace; border: 1px solid #666;
+  border-radius: 3px; padding: .12rem .3rem; margin-left: .3rem;
+}
+
+main, #welcome {
+  max-width: 42rem; margin: 0 auto; padding: 4.5rem 1.5rem 6rem;
+}
+
+#welcome h1 { font-size: 1.6rem; line-height: 1.2; }
+#welcome .fine { color: var(--dim); font-size: 14px; }
+#recent { list-style: none; padding: 0; }
+#recent li { margin: .3rem 0; }
+#recent button {
+  font: 15px/1.4 inherit; background: none; border: 0; padding: 0;
+  color: #8a4b2a; cursor: pointer; text-decoration: underline;
+}
+@media (prefers-color-scheme: dark) { #recent button { color: #d9a074; } }
+
+h1, h2, h3, h4 { font-family: -apple-system, system-ui, Helvetica, Arial, sans-serif; line-height: 1.25; }
+img { max-width: 100%; height: auto; }
+table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; }
+td, th { border: 1px solid var(--rule); padding: .35rem .6rem; text-align: left; }
+code { font: .88em ui-monospace, monospace; background: rgba(128,128,128,.14); padding: .1rem .3rem; border-radius: 3px; }
+pre { overflow-x: auto; padding: .8rem 1rem; background: rgba(128,128,128,.1); border-radius: 4px; }
+pre code { background: none; padding: 0; }
+blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid var(--rule); color: var(--dim); }
+
+/* A block being edited, and a block that has changed. */
+[data-block] { padding: .15rem .5rem; margin-left: -.5rem; border-left: 3px solid transparent; outline: none; }
+[data-block]:focus { background: var(--live); border-left-color: var(--rule); }
+[data-block].changed { border-left-color: var(--edited); }
+[data-block][data-locked] { opacity: .75; cursor: not-allowed; }

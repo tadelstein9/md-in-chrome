@@ -123,6 +123,7 @@ async function openHandle(h) {
   await remember(h);
   bar.name.textContent = h.name;
   bar.save.hidden = false;
+  document.getElementById("selectall").hidden = false;
   welcome.hidden = true;
   docEl.hidden = false;
   bar.status.textContent = `${blocks.length} blocks · no changes`;
@@ -223,6 +224,28 @@ async function save() {
 
 bar.save.addEventListener("click", save);
 
+// Select the whole document.
+//
+// A block being edited is a contenteditable element, and while it holds the
+// focus Chrome throws away a selection set across anything outside it — which
+// is why the first two attempts gave one block and then nothing at all. Let go
+// of the focus, wait for the browser to act on that, then set the range.
+function selectWholeDocument() {
+  const active = document.activeElement;
+  if (active && typeof active.blur === "function") active.blur();
+  requestAnimationFrame(() => {
+    const range = document.createRange();
+    range.selectNodeContents(docEl);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    const words = docEl.innerText.trim().split(/\s+/).length;
+    bar.status.textContent = `selected the whole document — ${words.toLocaleString()} words`;
+  });
+}
+
+document.getElementById("selectall").addEventListener("click", selectWholeDocument);
+
 document.addEventListener("keydown", (e) => {
   if (!(e.ctrlKey || e.metaKey)) return;
   const key = e.key.toLowerCase();
@@ -235,11 +258,7 @@ document.addEventListener("keydown", (e) => {
   // one paragraph. Whole document, wherever the cursor is.
   if (key === "a") {
     e.preventDefault();
-    const range = document.createRange();
-    range.selectNodeContents(docEl);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
+    selectWholeDocument();
   }
 });
 

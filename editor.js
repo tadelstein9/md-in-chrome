@@ -244,6 +244,10 @@ async function copyWholeDocument() {
     ]);
     const words = text.trim().split(/\s+/).length;
     bar.status.textContent = `copied — ${words.toLocaleString()} words, paste anywhere`;
+    // Show what went. Without this the button gives no sign it did anything.
+    docEl.classList.add("copied");
+    clearTimeout(copyWholeDocument.fade);
+    copyWholeDocument.fade = setTimeout(() => docEl.classList.remove("copied"), 900);
   } catch (err) {
     bar.status.textContent = `copy failed: ${err.message}`;
   }

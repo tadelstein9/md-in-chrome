@@ -70,6 +70,16 @@ pre { overflow-x: auto; padding: .8rem 1rem; background: rgba(128,128,128,.1); b
 pre code { background: none; padding: 0; }
 blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid var(--rule); color: var(--dim); }
 
+/* After a copy, flash every block the way a real selection would look, so you
+   can see what went to the clipboard. The copy does not use a selection — a
+   browser will not span one across separate editable regions — so the page
+   shows you the same thing a selection would have. */
+#doc.copied [data-block] {
+  background: rgba(50, 151, 253, .35);
+  transition: background .12s ease-in;
+}
+#doc [data-block] { transition: background .5s ease-out; }
+
 /* A block being edited, and a block that has changed. */
 [data-block] { padding: .15rem .5rem; margin-left: -.5rem; border-left: 3px solid transparent; outline: none; }
 [data-block]:focus { background: var(--live); border-left-color: var(--rule); }

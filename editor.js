@@ -229,11 +229,11 @@ document.addEventListener("keydown", (e) => {
 
   if (key === "s") { e.preventDefault(); save(); return; }
 
-  // Ctrl+A selects the document, not the bar above it. Inside a block being
-  // edited, leave it alone — there it means select this paragraph.
+  // Select all means all. The first version left Ctrl+A alone inside a block,
+  // on the theory that in an editor it means select this paragraph. It doesn't:
+  // click into a paragraph, press Ctrl+A to copy the article out, and you get
+  // one paragraph. Whole document, wherever the cursor is.
   if (key === "a") {
-    const el = document.activeElement;
-    if (el && el.closest && el.closest("[data-block]")) return;
     e.preventDefault();
     const range = document.createRange();
     range.selectNodeContents(docEl);

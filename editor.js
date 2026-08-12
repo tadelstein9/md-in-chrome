@@ -1,7 +1,16 @@
 import { marked } from "./lib/marked.esm.js";
 import TurndownService from "./lib/turndown.es.js";
 import { gfm } from "./lib/turndown-gfm.es.js";
-import { splitBlocks, isLocked, stripNbsp, wrap, assemble } from "./blocks.js";
+import {
+  splitBlocks,
+  isLocked,
+  stripNbsp,
+  wrap,
+  assemble,
+  blockPrefix,
+  restorePrefix,
+  normalizeNewlines,
+} from "./blocks.js";
 
 const bar = {
   open: document.getElementById("open"),
@@ -111,14 +120,31 @@ async function showRecent() {
 // ------------------------------------------------------------------- opening
 
 async function openHandle(h) {
+  if (typeof window.showOpenFilePicker !== "function") {
+    bar.status.textContent =
+      "this browser cannot open disk files here — use Chrome or Edge";
+    return;
+  }
   const opts = { mode: "readwrite" };
-  if ((await h.queryPermission(opts)) !== "granted" &&
-      (await h.requestPermission(opts)) !== "granted") {
-    bar.status.textContent = "permission refused";
+  try {
+    if ((await h.queryPermission(opts)) !== "granted" &&
+        (await h.requestPermission(opts)) !== "granted") {
+      bar.status.textContent = "permission refused — allow edit access to that file";
+      return;
+    }
+  } catch (err) {
+    bar.status.textContent = `permission error: ${err.message}`;
     return;
   }
   handle = h;
-  const text = await (await h.getFile()).text();
+  let text;
+  try {
+    text = await (await h.getFile()).text();
+  } catch (err) {
+    bar.status.textContent = `could not read file: ${err.message}`;
+    return;
+  }
+  text = normalizeNewlines(text);
   render(text);
   await remember(h);
   bar.name.textContent = h.name;
@@ -130,12 +156,21 @@ async function openHandle(h) {
 }
 
 bar.open.addEventListener("click", async () => {
+  if (typeof window.showOpenFilePicker !== "function") {
+    bar.status.textContent =
+      "this browser cannot open disk files here — use Chrome or Edge";
+    return;
+  }
   try {
     const [h] = await window.showOpenFilePicker({
       types: [{
         description: "Markdown",
-        accept: { "text/markdown": [".md", ".markdown", ".mdown", ".txt"] },
+        accept: {
+          "text/markdown": [".md", ".markdown", ".mdown"],
+          "text/plain": [".txt", ".md"],
+        },
       }],
+      multiple: false,
     });
     await openHandle(h);
   } catch (err) {
@@ -146,25 +181,18 @@ bar.open.addEventListener("click", async () => {
 // ------------------------------------------------------------------ rendering
 
 function render(text) {
-  blocks = splitBlocks(text);
+  blocks = splitBlocks(normalizeNewlines(text));
   initial = [];
   docEl.textContent = "";
 
   blocks.forEach((block, i) => {
-    const holder = document.createElement("div");
-    holder.innerHTML = marked.parse(block);
-
-    // A block normally renders to one element. If it renders to more, keep the
-    // holder so the block stays one editable unit and the index stays true.
-    let el;
-    if (holder.children.length === 1) {
-      el = holder.firstElementChild;
-    } else {
-      el = holder;
-      el.dataset.multi = "1";
-    }
-
+    // Always edit a wrapper div. Putting contenteditable on <table>, <ul>, or
+    // <ol> is unreliable in Chrome (focus, selection, and copy break).
+    const el = document.createElement("div");
+    el.className = "block";
     el.dataset.block = String(i);
+    el.innerHTML = marked.parse(block);
+
     if (isLocked(block)) {
       el.dataset.locked = "1";
     } else {
@@ -178,7 +206,7 @@ function render(text) {
 
 docEl.addEventListener("input", (e) => {
   const el = e.target.closest("[data-block]");
-  if (!el) return;
+  if (!el || el.dataset.locked === "1") return;
   const i = Number(el.dataset.block);
   el.classList.toggle("changed", el.innerHTML !== initial[i]);
   const n = docEl.querySelectorAll("[data-block].changed").length;
@@ -187,21 +215,28 @@ docEl.addEventListener("input", (e) => {
 
 // -------------------------------------------------------------------- saving
 
-function toMarkdown(el) {
+function toMarkdown(el, sourceBlock) {
   const clone = el.cloneNode(true);
   clone.removeAttribute("data-block");
   clone.removeAttribute("contenteditable");
   clone.removeAttribute("spellcheck");
   clone.removeAttribute("class");
-  const html = stripNbsp(clone.dataset.multi ? clone.innerHTML : clone.outerHTML);
-  return wrap(turndown.turndown(html).trim());
+  clone.removeAttribute("data-locked");
+  // Wrapper div: convert its children, not the empty shell.
+  const html = stripNbsp(clone.innerHTML);
+  let md = wrap(turndown.turndown(html).trim());
+  // If conversion dropped a source marker (heading hashes, quote, list bullet),
+  // put it back from the original block.
+  md = restorePrefix(md, blockPrefix(sourceBlock));
+  return md;
 }
 
 async function save() {
   if (!handle) return;
   const changed = {};
   for (const el of docEl.querySelectorAll("[data-block].changed")) {
-    changed[Number(el.dataset.block)] = toMarkdown(el);
+    const i = Number(el.dataset.block);
+    changed[i] = toMarkdown(el, blocks[i] || "");
   }
   const count = Object.keys(changed).length;
   if (!count) { bar.status.textContent = "nothing to save"; return; }

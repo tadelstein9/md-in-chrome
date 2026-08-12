@@ -70,6 +70,29 @@ pre { overflow-x: auto; padding: .8rem 1rem; background: rgba(128,128,128,.1); b
 pre code { background: none; padding: 0; }
 blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid var(--rule); color: var(--dim); }
 
+/* Each markdown block lives in a wrapper. contenteditable is on this div, not
+   on table/ul/ol roots (Chrome mishandles those as the editable host). */
+#doc .block {
+  outline: none;
+  margin: 0 0 .15rem;
+  padding: .15rem .35rem;
+  border-radius: 3px;
+  border-left: 3px solid transparent;
+}
+#doc .block:focus {
+  background: var(--live);
+  border-left-color: var(--accent);
+}
+#doc .block.changed {
+  border-left-color: var(--edited);
+}
+#doc .block[data-locked="1"] {
+  opacity: .92;
+  cursor: default;
+}
+#doc .block > *:first-child { margin-top: 0; }
+#doc .block > *:last-child { margin-bottom: 0; }
+
 /* After a copy, flash every block the way a real selection would look, so you
    can see what went to the clipboard. The copy does not use a selection — a
    browser will not span one across separate editable regions — so the page
@@ -79,9 +102,3 @@ blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid var(--ru
   transition: background .12s ease-in;
 }
 #doc [data-block] { transition: background .5s ease-out; }
-
-/* A block being edited, and a block that has changed. */
-[data-block] { padding: .15rem .5rem; margin-left: -.5rem; border-left: 3px solid transparent; outline: none; }
-[data-block]:focus { background: var(--live); border-left-color: var(--rule); }
-[data-block].changed { border-left-color: var(--edited); }
-[data-block][data-locked] { opacity: .75; cursor: not-allowed; }

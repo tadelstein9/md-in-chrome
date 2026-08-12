@@ -11,8 +11,15 @@
 
 export const WRAP_COLUMNS = 95;
 
+/** Windows and some editors still emit CR. Left in place, \r sits inside
+ *  headings and paragraphs, breaks the renderer, and poisons the save. */
+export function normalizeNewlines(text) {
+  return String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
 /** Cut markdown into blocks on blank lines, keeping a fenced block whole. */
 export function splitBlocks(text) {
+  text = normalizeNewlines(text);
   const blocks = [];
   let cur = [];
   let inFence = false;

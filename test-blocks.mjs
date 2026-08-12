@@ -5,6 +5,7 @@
 
 import {
   splitBlocks, isLocked, blockPrefix, stripNbsp, wrap, restorePrefix, assemble,
+  normalizeNewlines,
 } from "./blocks.js";
 
 let pass = 0, fail = 0;
@@ -31,11 +32,16 @@ with a blank line inside it
 > a quotation
 `;
 
+console.log("normalizeNewlines");
+ok("crlf to lf", normalizeNewlines("a\r\nb\r\n"), "a\nb\n");
+ok("lone cr", normalizeNewlines("a\rb"), "a\nb");
+
 console.log("splitBlocks");
 const blocks = splitBlocks(SAMPLE);
 ok("counts the blocks", blocks.length, 5);
 ok("keeps a fence whole", blocks[2].split("\n").length, 5);
 ok("heading survives", blocks[0], "# A heading");
+ok("crlf file has clean blocks", splitBlocks("A\r\n\r\nB\r\n"), ["A", "B"]);
 
 console.log("isLocked");
 ok("fence is locked", isLocked(blocks[2]), true);

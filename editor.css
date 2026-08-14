@@ -51,6 +51,36 @@ main, #welcome {
   max-width: 42rem; margin: 0 auto; padding: 4.5rem 1.5rem 6rem;
 }
 
+#folder-browser {
+  max-width: 42rem; margin: 0 auto; padding: 4.5rem 1.5rem 6rem;
+  font: 15px/1.5 -apple-system, system-ui, Helvetica, Arial, sans-serif;
+}
+#folder-crumb { color: var(--dim); word-break: break-all; }
+#folder-go-form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: 1rem 0 1.25rem; }
+#folder-go-form label { flex: 1 1 100%; color: var(--dim); font-size: 14px; }
+#folder-go {
+  flex: 1 1 12rem; font: 15px/1.4 ui-monospace, monospace;
+  padding: .35rem .55rem; border: 1px solid var(--rule); border-radius: 4px;
+  background: var(--bg); color: var(--ink);
+}
+#folder-go-form button {
+  font: 13px/1.4 -apple-system, system-ui, Helvetica, Arial, sans-serif;
+  padding: .35rem .7rem; border-radius: 4px;
+  border: 1px solid #555; background: #2a2a28; color: #eee; cursor: pointer;
+}
+#folder-list { list-style: none; padding: 0; margin: 0; }
+#folder-list li { margin: 0; border-bottom: 1px solid var(--rule); }
+#folder-list button {
+  display: block; width: 100%; text-align: left;
+  font: 15px/1.4 inherit; background: none; border: 0;
+  padding: .4rem .2rem; color: inherit; cursor: pointer;
+}
+#folder-list button:hover { background: rgba(128,128,128,.1); }
+#folder-list .dir { font-weight: 600; }
+#folder-list .dot { color: var(--dim); }
+#folder-list .up { color: #8a4b2a; }
+@media (prefers-color-scheme: dark) { #folder-list .up { color: #d9a074; } }
+
 #welcome h1 { font-size: 1.6rem; line-height: 1.2; }
 #welcome .fine { color: var(--dim); font-size: 14px; }
 #recent { list-style: none; padding: 0; }
@@ -86,6 +116,17 @@ blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid var(--ru
 #doc .block.changed {
   border-left-color: var(--edited);
 }
+.md-ins, span.md-ins { color: #c41e3a; }
+.md-del, del.md-del {
+  color: #c41e3a;
+  text-decoration: line-through;
+  text-decoration-color: #c41e3a;
+  text-decoration-thickness: 1.5px;
+}
+.md-remark, span.md-remark { color: #c41e3a; font-style: italic; }
+
+#bar button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+
 #doc .block[data-locked="1"] {
   opacity: .92;
   cursor: default;

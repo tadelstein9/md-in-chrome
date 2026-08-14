@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Markdown in Chrome",
-  "version": "0.2.0",
-  "description": "Open a markdown file, read it as it will look, edit on the page, and save back to the same file. Only blocks you touch are rewritten.",
+  "version": "0.2.5",
+  "description": "Open a markdown file, read it as it will look, edit on the page, and save an edit copy. The original file does not change.",
   "permissions": [
     "tabs"
   ],

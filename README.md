@@ -1,10 +1,12 @@
 # Markdown in Chrome
 
-**Version 0.2.0.** Open a markdown file in Chrome or Edge, read it the way it is meant to look, fix what you find on the page, and save it back to the **same file**.
+**Version 0.2.5.** Open a markdown file in Chrome or Edge. Read it the way it is meant to look. Fix a sentence while you are looking at it. Save writes an **edit copy** beside the original. The original file does not change.
+
+The edit copy holds every red change, every struck original word, and every editor remark. A file that is already `name.edit.md` stays that file. The program never writes `name.edit.edit.md`.
 
 Only the paragraphs you touch are rewritten. Everything else is written out **character for character** as it arrived. Change one word, get a one-word diff.
 
-**Keep a copy of anything you care about before you edit it here.** This program writes to your file.
+**Keep a copy of anything you care about before you edit it here.** This program writes to disk.
 
 ## Why this exists
 
@@ -25,7 +27,7 @@ Not on the Chrome Web Store yet. Load it unpacked:
 5. Click **Load unpacked** and choose the folder that contains `manifest.json`.
 6. Pin **Markdown in Chrome** on the toolbar if you like. Click the icon — the editor opens in its own tab.
 
-To update later: pull or re-download, then on `chrome://extensions` click **Reload** on the card.
+To update later: pull or re-download, then on `chrome://extensions` click **Reload** on the card. Refresh the editor tab after that.
 
 ### Optional: zip for friends
 
@@ -35,28 +37,82 @@ From this directory:
 ./pack.sh
 ```
 
-That writes `dist/md-in-chrome-0.2.0.zip`. Send the zip; they unzip and **Load unpacked** on the folder inside.
+That writes `dist/md-in-chrome-<version>.zip`. Send the zip; they unzip and **Load unpacked** on the folder inside.
 
-## Using it
+## How to use it
 
-1. Click **Open a markdown file** and pick a `.md` file.
-2. Chrome asks once for permission to write to that file — allow it.
-3. Edit on the page. A gold bar marks blocks you changed.
-4. **Ctrl+S** (Mac: **Cmd+S**) saves. The status bar says how many blocks it wrote.
-5. **Copy whole document** (or Ctrl+A) puts clean HTML + plain text on the clipboard for Substack, Word, or LibreOffice — without the editor’s own markup.
+Click the toolbar icon. The editor opens in its own tab.
 
-Fenced code blocks stay **read-only** so browser editing does not destroy indentation.
+### 1. Open a folder (usual way)
 
-## What 0.2.0 fixed
+Use **Open a folder** when you want the edit copy to sit next to the original.
 
-| Problem | Fix |
-|---------|-----|
-| Toolbar icon did nothing (tabs query failed without permission) | `tabs` permission; open-tab always falls back; errors logged |
-| Missing toolbar icon | `action.default_icon` set |
-| Windows `.md` files with CRLF rendered/saved wrong | Newlines normalized on open |
-| Tables and lists hard to edit | Every block is a wrapper `div` with `contenteditable` |
-| Conversion could drop heading/list markers | `restorePrefix` applied on save |
-| Silent failures on open/permission | Status bar messages |
+1. Click **Open a folder**.
+2. In Chrome’s folder window, go to the folder that holds the `.md` file. Then click **Select**.
+3. Click the file in the list.
+
+Chrome will not select Home. It says the folder contains system files. In that window, type the folder you want, then Select:
+
+| System | How to type the path |
+|---|---|
+| Linux | **Ctrl+L**, type the path (example: `/home/you/Books/draft`), Enter, **Select** |
+| Windows | Click the path bar at the top of the window, type the path, Enter, **Select** |
+| Mac | **Cmd+Shift+G**, type the path, Go, **Select** |
+
+A folder whose name starts with a period (`.grok`, `.claude`) works the same way. Type the full path to that folder, then Select. Or open a parent folder Chrome will accept, type the child name (`.grok`) in **Folder name inside the one you already opened**, and click **Go**. The list includes names that start with a period.
+
+**Back to folder** returns to the list.
+
+### 2. Open one file
+
+Click **Open a markdown file** and pick a `.md` file. Chrome asks once for permission to write — allow it.
+
+Save still writes an edit copy. Without a folder, Chrome will ask where to put that copy.
+
+### 3. Edit on the page
+
+Headings look like headings. Tables look like tables. Click in a paragraph and type.
+
+A gold bar on the left marks a block you changed.
+
+**Mark edits** is on by default. Change a sentence and click out of it:
+
+- New words turn **red**.
+- Words you replaced stay on the page in **red with a line through them**.
+
+Click **Mark edits** again if you want the marks off.
+
+Fenced code blocks stay **read-only**, so a browser edit cannot destroy the indentation.
+
+### 4. Save the edit copy
+
+**Save edit copy** or **Ctrl+S** (Mac: **Cmd+S**) writes `name.edit.md` in the same folder. `chapter.md` becomes `chapter.edit.md`. The original `chapter.md` stays as it was.
+
+Open `chapter.edit.md` again and save. The program updates that same file. It does not create `chapter.edit.edit.md`.
+
+If you opened the edit copy from a folder that still holds the original, the editor reads the original and puts the replaced words back on the page, struck through. Save writes those struck words into the edit copy so they are there the next time.
+
+The status bar names the file it wrote and how many blocks it touched.
+
+### 5. Leave a remark
+
+Click in a paragraph, then **Remark**. Type the note. It lands at the cursor as a red italic `[Editor: …]`.
+
+That note lives only in the edit copy. It is for the professional reader. A later pass treats those notes as instruction.
+
+### 6. Copy the whole document
+
+**Copy whole document** or **Ctrl+A** puts clean HTML and plain text on the clipboard. Paste into Substack, Word, or LibreOffice. The editor’s own markup does not ride along.
+
+## What 0.2.5 adds
+
+| You do this | What happens |
+|---|---|
+| Open a folder | Hidden names (`.grok`) appear in the list. Type a child name to enter it. |
+| Change a sentence and click out | New words in red. Replaced words stay, red, with a line through them. |
+| Save | Writes `name.edit.md`. The original file does not change. |
+| Open an edit copy next to its original | Struck originals come back onto the page. Save keeps them. |
+| Remark | Inserts `[Editor: …]` in the edit copy. |
 
 ## Requires
 
@@ -69,9 +125,12 @@ Your file never leaves your computer. The page makes no network requests. It onl
 
 ```bash
 node test-blocks.mjs
+node test-edits.mjs
 ```
 
-Covers the guarantee: split, edit one block, every other block returns identical. Also CRLF normalization.
+`test-blocks.mjs` covers the guarantee: split, edit one block, every other block returns identical. Also CRLF normalization.
+
+`test-edits.mjs` covers the red marks: insertions, struck deletions, the edit-copy name, and a second pass that does not eat the struck words.
 
 ## Bundled (offline)
 

@@ -9,22 +9,40 @@
 
 <div id="bar">
   <button id="open">Open a markdown file</button>
+  <button id="openfolder">Open a folder</button>
+  <button id="backfolder" hidden>Back to folder</button>
   <span id="name"></span>
   <span id="status">nothing open</span>
   <button id="copyall" hidden>Copy whole document</button>
-  <button id="save" hidden>Save <kbd>Ctrl+S</kbd></button>
+  <button id="markedits" hidden aria-pressed="true">Mark edits</button>
+  <button id="remark" hidden>Remark</button>
+  <button id="save" hidden>Save edit copy <kbd>Ctrl+S</kbd></button>
 </div>
 
 <main id="doc" hidden></main>
+
+<section id="folder-browser" hidden>
+  <p id="folder-crumb"></p>
+  <form id="folder-go-form">
+    <label for="folder-go">Folder name inside the one you already opened (example: .grok). Chrome will not let you open Home itself.</label>
+    <input id="folder-go" type="text" spellcheck="false" placeholder=".grok" autocomplete="off">
+    <button type="submit">Go</button>
+  </form>
+  <ul id="folder-list"></ul>
+</section>
 
 <section id="welcome">
   <h1>Markdown in Chrome</h1>
   <p>A model hands you a file full of pound signs and asterisks. Open it here and
      read it the way it is meant to look — headings as headings, tables as tables.
-     Fix what you find while you are looking at it. <kbd>Ctrl+S</kbd> writes your
-     changes back to the same file on your disk.</p>
+     Fix what you find while you are looking at it. <kbd>Ctrl+S</kbd> writes an
+     edit copy beside the original. The original file does not change.</p>
   <p>Only the paragraphs you actually touch get rewritten. Everything else is
      saved exactly as it arrived, character for character.</p>
+  <p><b>Open a folder</b> lists hidden names such as <code>.grok</code>.
+     In Chrome’s folder window type the folder you want, then Select.
+     Linux: <kbd>Ctrl+L</kbd>. Windows: the path bar. Mac: <kbd>Cmd+Shift+G</kbd>.
+     Do not pick Home. Chrome will not select it.</p>
   <p id="recent-wrap" hidden>Recently opened:</p>
   <ul id="recent"></ul>
   <p class="fine">Your file never leaves your computer. This page has no network

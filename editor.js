@@ -11,15 +11,33 @@ import {
   restorePrefix,
   normalizeNewlines,
 } from "./blocks.js";
+import { unmarkedBase, diffToHtml, editCopyName, originalName } from "./edits.js";
 
 const bar = {
   open: document.getElementById("open"),
+  openFolder: document.getElementById("openfolder"),
+  backFolder: document.getElementById("backfolder"),
   save: document.getElementById("save"),
+  markEdits: document.getElementById("markedits"),
+  remark: document.getElementById("remark"),
   name: document.getElementById("name"),
   status: document.getElementById("status"),
 };
 const docEl = document.getElementById("doc");
 const welcome = document.getElementById("welcome");
+const folderBrowser = document.getElementById("folder-browser");
+const folderList = document.getElementById("folder-list");
+const folderCrumb = document.getElementById("folder-crumb");
+const folderGo = document.getElementById("folder-go");
+const folderGoForm = document.getElementById("folder-go-form");
+
+const MD_EXT = /\.(md|markdown|mdown|txt)$/i;
+
+// Folder stack: each entry is a FileSystemDirectoryHandle. The last one is
+// the directory on screen. Hidden names (".grok") are listed and can be
+// entered — Chrome's own Open dialog hides them.
+let folderStack = [];
+let browsingFolder = false;
 
 marked.setOptions({ gfm: true, breaks: false });
 
@@ -38,6 +56,22 @@ turndown.use(gfm);
 // Turndown pads a list marker out to three spaces — "-   one" where the file
 // said "- one". Every list in the document would rewrite itself on the first
 // save. Match the source instead.
+turndown.addRule("redInsert", {
+  filter(node) {
+    return node.nodeName === "SPAN" && node.classList && node.classList.contains("md-ins");
+  },
+  replacement(content, node) {
+    const cls = (node.className || "md-ins").trim() || "md-ins";
+    return `<span class="${cls}">${content}</span>`;
+  },
+});
+turndown.addRule("redDelete", {
+  filter: "DEL",
+  replacement(content) {
+    return `<del class="md-del">${content}</del>`;
+  },
+});
+
 turndown.addRule("tightListItem", {
   filter: "li",
   replacement(content, node, options) {
@@ -53,9 +87,13 @@ turndown.addRule("tightListItem", {
   },
 });
 
-let handle = null;      // FileSystemFileHandle for the open file
+let handle = null;      // FileSystemFileHandle we write to (the edit copy)
+let sourceDir = null;   // folder that holds the original, when we have it
+let openedName = "";    // name of the file the person opened
 let blocks = [];        // every block as it came off disk
 let initial = [];       // each block's HTML as first rendered
+let basePlain = [];     // unmarked original text of each block
+let markEditsOn = true;
 
 // ---------------------------------------------------------------- recent files
 //
@@ -137,6 +175,9 @@ async function openHandle(h) {
     return;
   }
   handle = h;
+  openedName = h.name;
+  if (folderStack.length) sourceDir = folderStack[folderStack.length - 1];
+  else sourceDir = null;
   let text;
   try {
     text = await (await h.getFile()).text();
@@ -146,13 +187,21 @@ async function openHandle(h) {
   }
   text = normalizeNewlines(text);
   render(text);
+  const restored = await restoreStruckFromOriginal();
   await remember(h);
-  bar.name.textContent = h.name;
+  bar.name.textContent = crumb() ? `${crumb()} / ${h.name}` : h.name;
   bar.save.hidden = false;
   document.getElementById("copyall").hidden = false;
+  bar.markEdits.hidden = false;
+  bar.markEdits.setAttribute("aria-pressed", markEditsOn ? "true" : "false");
+  bar.remark.hidden = false;
   welcome.hidden = true;
+  folderBrowser.hidden = true;
   docEl.hidden = false;
-  bar.status.textContent = `${blocks.length} blocks · no changes`;
+  bar.backFolder.hidden = folderStack.length === 0;
+  bar.status.textContent = restored
+    ? `${blocks.length} blocks · ${restored} replacement${restored > 1 ? "s" : ""} now show the old words struck · Save edit copy to keep them`
+    : `${blocks.length} blocks · no changes`;
 }
 
 bar.open.addEventListener("click", async () => {
@@ -178,11 +227,196 @@ bar.open.addEventListener("click", async () => {
   }
 });
 
+function crumb() {
+  return folderStack.map((h) => h.name).join(" / ");
+}
+
+function showFolderPane() {
+  welcome.hidden = true;
+  docEl.hidden = true;
+  folderBrowser.hidden = false;
+  bar.save.hidden = true;
+  document.getElementById("copyall").hidden = true;
+  bar.markEdits.hidden = true;
+  bar.remark.hidden = true;
+  bar.backFolder.hidden = true;
+  browsingFolder = true;
+}
+
+async function listFolder() {
+  const dir = folderStack[folderStack.length - 1];
+  if (!dir) return;
+  const dirs = [];
+  const files = [];
+  try {
+    for await (const [name, h] of dir.entries()) {
+      const row = { name, handle: h };
+      if (h.kind === "directory") dirs.push(row);
+      else if (MD_EXT.test(name)) files.push(row);
+    }
+  } catch (err) {
+    bar.status.textContent = `could not read folder: ${err.message}`;
+    return;
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  dirs.sort(byName);
+  files.sort(byName);
+
+  folderCrumb.textContent = crumb() || dir.name;
+  bar.name.textContent = crumb() || dir.name;
+  folderList.textContent = "";
+
+  if (folderStack.length > 1) {
+    const li = document.createElement("li");
+    const button = document.createElement("button");
+    button.className = "up";
+    button.textContent = ".. (up)";
+    button.addEventListener("click", () => {
+      folderStack.pop();
+      listFolder();
+    });
+    li.appendChild(button);
+    folderList.appendChild(li);
+  }
+
+  for (const row of dirs) {
+    const li = document.createElement("li");
+    const button = document.createElement("button");
+    button.className = "dir" + (row.name.startsWith(".") ? " dot" : "");
+    button.textContent = row.name + "/";
+    button.addEventListener("click", () => enterDir(row.handle));
+    li.appendChild(button);
+    folderList.appendChild(li);
+  }
+  for (const row of files) {
+    const li = document.createElement("li");
+    const button = document.createElement("button");
+    if (row.name.startsWith(".")) button.className = "dot";
+    button.textContent = row.name;
+    button.addEventListener("click", () => openHandle(row.handle));
+    li.appendChild(button);
+    folderList.appendChild(li);
+  }
+
+  const hiddenDirs = dirs.filter((r) => r.name.startsWith(".")).length;
+  bar.status.textContent =
+    `${dirs.length} folders · ${files.length} markdown files` +
+    (hiddenDirs ? ` · ${hiddenDirs} start with .` : "");
+  folderGo.value = "";
+  folderGo.focus();
+}
+
+async function enterDir(handle) {
+  folderStack.push(handle);
+  await listFolder();
+}
+
+async function enterNamed(name) {
+  const dir = folderStack[folderStack.length - 1];
+  if (!dir) return;
+  const trimmed = name.trim().replace(/\/+$/, "");
+  if (!trimmed) return;
+  if (trimmed === "..") {
+    if (folderStack.length > 1) folderStack.pop();
+    await listFolder();
+    return;
+  }
+  try {
+    const next = await dir.getDirectoryHandle(trimmed);
+    await enterDir(next);
+  } catch (err) {
+    bar.status.textContent =
+      `no folder named ${trimmed} here — ${err.message}`;
+  }
+}
+
+bar.openFolder.addEventListener("click", async () => {
+  if (typeof window.showDirectoryPicker !== "function") {
+    bar.status.textContent =
+      "this browser cannot open folders here — use Chrome or Edge";
+    return;
+  }
+  try {
+    const dir = await window.showDirectoryPicker();
+    folderStack = [dir];
+    showFolderPane();
+    await listFolder();
+  } catch (err) {
+    if (err.name !== "AbortError") bar.status.textContent = err.message;
+  }
+});
+
+bar.backFolder.addEventListener("click", async () => {
+  if (!folderStack.length) return;
+  showFolderPane();
+  await listFolder();
+});
+
+folderGoForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  await enterNamed(folderGo.value);
+});
+
 // ------------------------------------------------------------------ rendering
+
+/** Current wording: ignore struck text so a second pass does not re-diff it. */
+function currentPlain(el) {
+  const clone = el.cloneNode(true);
+  clone.querySelectorAll("del").forEach((n) => n.remove());
+  return clone.innerText.replace(/\u00a0/g, " ");
+}
+
+function applyEditMark(el) {
+  const i = Number(el.dataset.block);
+  if (el.dataset.locked === "1") return;
+  const host = el.firstElementChild;
+  if (host && ["UL", "OL", "TABLE", "PRE"].includes(host.tagName)) return;
+  const now = currentPlain(el);
+  const prev = basePlain[i] || "";
+  if (now === prev) return;
+  const html = diffToHtml(prev, now);
+  if (host) host.innerHTML = html;
+  else el.innerHTML = `<p>${html}</p>`;
+  el.classList.add("changed");
+}
+
+/** When the open file is an edit copy, paint struck originals from the sibling. */
+async function restoreStruckFromOriginal() {
+  if (!sourceDir || !openedName) return 0;
+  const orig = originalName(openedName);
+  if (orig === openedName) return 0;
+  let origHandle;
+  try {
+    origHandle = await sourceDir.getFileHandle(orig);
+  } catch {
+    return 0;
+  }
+  let origText;
+  try {
+    origText = normalizeNewlines(await (await origHandle.getFile()).text());
+  } catch {
+    return 0;
+  }
+  const origBlocks = splitBlocks(origText);
+  const n = Math.min(origBlocks.length, blocks.length);
+  let painted = 0;
+  for (let i = 0; i < n; i++) {
+    basePlain[i] = unmarkedBase(origBlocks[i]);
+    const src = blocks[i] || "";
+    if (!/class="md-ins"|<del\b/i.test(src)) continue;
+    const el = docEl.querySelector(`[data-block="${i}"]`);
+    if (!el || el.dataset.locked === "1") continue;
+    const before = el.innerHTML;
+    applyEditMark(el);
+    if (el.innerHTML !== before) painted++;
+  }
+  return painted;
+}
 
 function render(text) {
   blocks = splitBlocks(normalizeNewlines(text));
   initial = [];
+  basePlain = [];
   docEl.textContent = "";
 
   blocks.forEach((block, i) => {
@@ -200,6 +434,7 @@ function render(text) {
       el.spellcheck = true;
     }
     initial[i] = el.innerHTML;
+    basePlain[i] = unmarkedBase(block);
     docEl.appendChild(el);
   });
 }
@@ -211,6 +446,47 @@ docEl.addEventListener("input", (e) => {
   el.classList.toggle("changed", el.innerHTML !== initial[i]);
   const n = docEl.querySelectorAll("[data-block].changed").length;
   bar.status.textContent = n ? `${n} block${n > 1 ? "s" : ""} changed` : "no changes";
+});
+
+docEl.addEventListener("focusout", (e) => {
+  if (!markEditsOn) return;
+  const el = e.target.closest("[data-block]");
+  if (!el || el.dataset.locked === "1") return;
+  if (!el.classList.contains("changed")) return;
+  applyEditMark(el);
+});
+
+bar.markEdits.addEventListener("click", () => {
+  markEditsOn = !markEditsOn;
+  bar.markEdits.setAttribute("aria-pressed", markEditsOn ? "true" : "false");
+  bar.status.textContent = markEditsOn
+    ? "new words in red; replaced words stay struck in red"
+    : "edit marks off";
+});
+
+bar.remark.addEventListener("click", () => {
+  const el = document.activeElement && document.activeElement.closest
+    ? document.activeElement.closest("[data-block]")
+    : null;
+  const host = el || docEl.querySelector("[data-block]:not([data-locked])");
+  if (!host) {
+    bar.status.textContent = "click in a paragraph, then Remark";
+    return;
+  }
+  const note = window.prompt("Editor remark (goes in the edit copy, in red)");
+  if (note == null || !String(note).trim()) return;
+  const span = document.createElement("span");
+  span.className = "md-ins md-remark";
+  span.textContent = ` [Editor: ${String(note).trim()}] `;
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount && host.contains(sel.anchorNode)) {
+    sel.getRangeAt(0).deleteContents();
+    sel.getRangeAt(0).insertNode(span);
+  } else {
+    host.appendChild(span);
+  }
+  host.classList.add("changed");
+  bar.status.textContent = "remark added · save writes the edit copy";
 });
 
 // -------------------------------------------------------------------- saving
@@ -231,8 +507,42 @@ function toMarkdown(el, sourceBlock) {
   return md;
 }
 
+async function targetForSave() {
+  const copyName = editCopyName(openedName || handle.name);
+  if (copyName === handle.name) return handle;
+
+  if (sourceDir) {
+    const copy = await sourceDir.getFileHandle(copyName, { create: true });
+    const opts = { mode: "readwrite" };
+    if ((await copy.queryPermission(opts)) !== "granted" &&
+        (await copy.requestPermission(opts)) !== "granted") {
+      throw new Error("permission refused for the edit copy");
+    }
+    return copy;
+  }
+
+  if (typeof window.showSaveFilePicker !== "function") {
+    throw new Error("open the file from a folder so the edit copy can sit beside it");
+  }
+  return window.showSaveFilePicker({
+    suggestedName: copyName,
+    types: [{
+      description: "Markdown",
+      accept: {
+        "text/markdown": [".md", ".markdown", ".mdown"],
+        "text/plain": [".txt", ".md"],
+      },
+    }],
+  });
+}
+
 async function save() {
   if (!handle) return;
+  if (markEditsOn) {
+    for (const el of docEl.querySelectorAll("[data-block].changed")) {
+      applyEditMark(el);
+    }
+  }
   const changed = {};
   for (const el of docEl.querySelectorAll("[data-block].changed")) {
     const i = Number(el.dataset.block);
@@ -241,18 +551,31 @@ async function save() {
   const count = Object.keys(changed).length;
   if (!count) { bar.status.textContent = "nothing to save"; return; }
 
-  bar.status.textContent = "saving…";
+  bar.status.textContent = "saving edit copy…";
   try {
     const { text, deleted } = assemble(blocks, changed);
-    const stream = await handle.createWritable();
+    const dest = await targetForSave();
+    const stream = await dest.createWritable();
     await stream.write(text);
     await stream.close();
 
-    render(text);   // re-read our own output so indices and originals stay true
+    const wroteCopy = dest.name !== openedName;
+    handle = dest;
+    bar.name.textContent = dest.name;
+    await remember(dest);
+
+    render(text);
     bar.status.textContent =
-      `saved ${count} block${count > 1 ? "s" : ""}` +
+      (wroteCopy
+        ? `saved ${dest.name} · ${openedName} unchanged`
+        : `saved ${dest.name}`) +
+      ` · ${count} block${count > 1 ? "s" : ""}` +
       (deleted ? `, removed ${deleted}` : "");
   } catch (err) {
+    if (err.name === "AbortError") {
+      bar.status.textContent = "save cancelled";
+      return;
+    }
     bar.status.textContent = `FAILED: ${err.message}`;
   }
 }
@@ -311,7 +634,14 @@ document.addEventListener("keydown", (e) => {
 // reads that markup as formatting the author never applied. Clean it here so
 // there is no second page to remember.
 
-const KEEP = { A: ["href"], IMG: ["src", "alt"], TD: ["colspan", "rowspan"], TH: ["colspan", "rowspan"] };
+const KEEP = {
+  A: ["href"],
+  IMG: ["src", "alt"],
+  TD: ["colspan", "rowspan"],
+  TH: ["colspan", "rowspan"],
+  SPAN: ["class"],
+  DEL: ["class"],
+};
 
 // Strip everything the editor added, keep what is the document.
 function scrubAttributes(node) {

@@ -1,6 +1,6 @@
 # Markdown in Chrome
 
-**Version 0.3.1.** Open a markdown file in Chrome or Edge. Read it the way it is meant to look. Fix a sentence while you are looking at it. Save writes an **edit copy** beside the original. The original file does not change. A clean copy and a PDF sit next to it.
+**Version 0.3.2.** Open a markdown file in Chrome or Edge. Read it the way it is meant to look. Fix a sentence while you are looking at it. Save writes an **edit copy** beside the original. The original file does not change. A clean copy and a PDF sit next to it.
 
 The edit copy holds every red change, every struck original word, and every editor remark. A file that is already `name.edit.md` stays that file. The program never writes `name.edit.edit.md`.
 
@@ -132,7 +132,7 @@ That is how you tell what a reader will get before anyone accepts the changes.
 
 ### 10. Bold, italic, underline
 
-**Ctrl+B**, **Ctrl+I**, and **Ctrl+U** (Cmd on a Mac) apply while you type. A paragraph whose wording did not change keeps those tags on save. A paragraph whose wording did change is marked in red; the emphasis on that paragraph is rebuilt as words.
+**Ctrl+B**, **Ctrl+I**, and **Ctrl+U** (Cmd on a Mac) apply to the word under the caret, or to a selection. Click in a word and press the key. A paragraph whose wording did not change keeps those tags on save. A paragraph whose wording did change is marked in red; the emphasis on that paragraph is rebuilt as words.
 
 ## What 0.3.0 adds
 

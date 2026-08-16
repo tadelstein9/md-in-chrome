@@ -5,6 +5,8 @@
 // with insertions stripped and deletions restored, so a later edit of the
 // same paragraph still paints every change against the original wording.
 
+import { splitBlocks, isLocked, wrap } from "./blocks.js";
+
 export function escapeHtml(s) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -80,6 +82,20 @@ export function acceptedMarkdown(md) {
     .replace(/<span\b[^>]*class="[^"]*\bmd-remark\b[^"]*"[^>]*>[\s\S]*?<\/span>/gi, "")
     .replace(/<del\b[^>]*class="md-del"[^>]*>[\s\S]*?<\/del>/gi, "")
     .replace(/<span\b[^>]*class="md-ins"[^>]*>([\s\S]*?)<\/span>/gi, "$1");
+}
+
+/** After the marks come off, join wrap-breaks that sat inside the tags
+ *  and wrap the paragraph as ordinary markdown. Lists, tables and fences
+ *  keep their line breaks. */
+export function tidyAccepted(md) {
+  const blocks = splitBlocks(acceptedMarkdown(md));
+  return blocks.map((block) => {
+    if (isLocked(block)) return block;
+    if (block.includes("|")) return block;
+    if (/^[-*]\s/m.test(block) || /^\d+\.\s/m.test(block)) return wrap(block);
+    const collapsed = block.replace(/[ \t]*\n[ \t]*/g, " ").replace(/ {2,}/g, " ");
+    return wrap(collapsed);
+  }).join("\n\n") + "\n";
 }
 
 /** Sibling that receives the clean copy. foo.md → foo.clean.md, and an edit

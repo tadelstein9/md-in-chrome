@@ -14,7 +14,7 @@ import {
   unmarkedBase,
   editCopyName,
   originalName,
-  acceptedMarkdown,
+  tidyAccepted,
   cleanCopyName,
   decideMarks,
 } from "./edits.js";
@@ -607,7 +607,7 @@ async function saveClean() {
   bar.status.textContent = "saving clean copy…";
   try {
     const { text } = assemble(blocks, changed);
-    const clean = acceptedMarkdown(text);
+    const clean = tidyAccepted(text);
     const name = cleanCopyName(openedName || handle.name);
     const dest = await targetForName(name);
     const stream = await dest.createWritable();
@@ -647,7 +647,7 @@ async function savePdf() {
   bar.status.textContent = "saving PDF…";
   try {
     const { text } = assemble(blocks, changed);
-    const clean = acceptedMarkdown(text);
+    const clean = tidyAccepted(text);
     const bytes = buildPdfFromMarkdown(clean);
     const name = pdfFileName(openedName || handle.name);
     const dest = await targetForName(name, PDF_TYPES);

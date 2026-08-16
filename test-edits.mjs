@@ -1,7 +1,7 @@
 // Run: node test-edits.mjs
 import {
   tokenize, unmarkedBase, acceptedPlain, diffToHtml, escapeHtml,
-  editCopyName, originalName, acceptedMarkdown, cleanCopyName,
+  editCopyName, originalName, acceptedMarkdown, tidyAccepted, cleanCopyName,
   visiblePlain, decideMarks,
 } from "./edits.js";
 import { assemble } from "./blocks.js";
@@ -75,6 +75,19 @@ ok("no marks, nothing changes",
 ok("drops an editor remark",
   acceptedMarkdown('Hello <span class="md-ins md-remark"> [Editor: cut this] </span>there.'),
   "Hello there.");
+
+console.log("tidyAccepted");
+{
+  const wrappedMarks =
+    'naturalizer — <span class="md-ins">If</span> <span\n' +
+    'class="md-ins">you\'re</span> <span class="md-ins">writing</span>\n' +
+    '<span class="md-ins">with</span> AI.';
+  const tidy = tidyAccepted(wrappedMarks);
+  ok("joins wrap breaks after marks come off",
+    tidy.includes("If you're writing with AI."), true);
+  ok("does not leave a bare line break in the sentence",
+    /If\n/.test(tidy), false);
+}
 
 console.log("visiblePlain");
 ok("strips bold markers", visiblePlain("A **bold** word."), "A bold word.");

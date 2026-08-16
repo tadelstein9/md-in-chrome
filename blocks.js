@@ -74,6 +74,12 @@ export function wrap(text, columns = WRAP_COLUMNS) {
       if (line.length <= columns) return line;
       if (line.trimStart().startsWith("```")) return line;
       if (line.includes("|")) return line;
+      // Mark tags are wider than the words they hold. Wrapping them inserts
+      // newlines in the middle of a sentence; the clean copy then inherits
+      // those breaks after the tags come off.
+      if (line.includes("<del") || line.includes("md-ins") || line.includes("md-del")) {
+        return line;
+      }
 
       const indent = line.match(/^\s*/)[0];
       const words = line.trim().split(/\s+/);

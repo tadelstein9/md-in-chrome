@@ -63,6 +63,9 @@ const long = "word ".repeat(40).trim();
 ok("wraps past the column", wrap(long, 40).split("\n").every((l) => l.length <= 40), true);
 ok("leaves a short line alone", wrap("short", 40), "short");
 ok("leaves a table row alone", wrap("| a | " + "x".repeat(200) + " |", 40).includes("\n"), false);
+ok("leaves a marked line whole",
+  wrap('Hello <span class="md-ins">' + "word ".repeat(40).trim() + "</span>", 40).includes("\n"),
+  false);
 
 console.log("restorePrefix");
 ok("adds a lost marker", restorePrefix("Two", "## "), "## Two");

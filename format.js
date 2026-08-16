@@ -42,15 +42,48 @@ function unwrap(el) {
   parent.removeChild(el);
 }
 
+function firstText(node) {
+  if (!node) return null;
+  if (node.nodeType === 3) return node;
+  for (const child of node.childNodes) {
+    const found = firstText(child);
+    if (found) return found;
+  }
+  return null;
+}
+
+function lastText(node) {
+  if (!node) return null;
+  if (node.nodeType === 3) return node;
+  for (let i = node.childNodes.length - 1; i >= 0; i--) {
+    const found = lastText(node.childNodes[i]);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Caret may sit on a <p> or between mark tags, not in a text node. */
+function textAtCaret(range) {
+  const node = range.startContainer;
+  if (node.nodeType === 3) return { node, offset: range.startOffset };
+  const kids = node.childNodes;
+  const at = kids[range.startOffset];
+  const before = kids[range.startOffset - 1];
+  const text = firstText(at) || lastText(before) || firstText(node);
+  if (!text) return null;
+  const offset = firstText(at) ? 0 : text.textContent.length;
+  return { node: text, offset };
+}
+
 function rangeForWord(sel) {
   const range = sel.getRangeAt(0).cloneRange();
   if (!range.collapsed) return range;
-  const node = range.startContainer;
-  if (node.nodeType !== 3) return range;
-  const { start, end } = wordOffsets(node.textContent, range.startOffset);
+  const at = textAtCaret(range);
+  if (!at) return range;
+  const { start, end } = wordOffsets(at.node.textContent, at.offset);
   if (start === end) return range;
-  range.setStart(node, start);
-  range.setEnd(node, end);
+  range.setStart(at.node, start);
+  range.setEnd(at.node, end);
   return range;
 }
 
@@ -71,7 +104,9 @@ export function toggleInline(kind, root) {
   if (range.collapsed) return null;
 
   const already = enclosing(range.commonAncestorContainer, tag, block);
+  let keep = null;
   if (already) {
+    keep = already.parentNode;
     unwrap(already);
   } else {
     const wrap = document.createElement(tag.toLowerCase());
@@ -81,8 +116,17 @@ export function toggleInline(kind, root) {
       wrap.appendChild(range.extractContents());
       range.insertNode(wrap);
     }
+    keep = wrap;
   }
 
+  // Leave the caret in the word. Clearing the selection was why the
+  // next Ctrl+B had nothing to wrap and the shortcuts looked gone.
   sel.removeAllRanges();
+  if (keep) {
+    const next = document.createRange();
+    next.selectNodeContents(keep);
+    next.collapse(false);
+    sel.addRange(next);
+  }
   return block;
 }

@@ -61,6 +61,7 @@ let initial = [];       // each block's HTML as first rendered
 let basePlain = [];     // unmarked original text of each block
 let markEditsOn = true;
 let previewClean = false;
+let lastBlock = null;
 
 // ---------------------------------------------------------------- recent files
 //
@@ -437,6 +438,11 @@ function render(text) {
   setPreview(false);
 }
 
+docEl.addEventListener("focusin", (e) => {
+  const el = e.target.closest && e.target.closest("[data-block]");
+  if (el) lastBlock = el;
+});
+
 docEl.addEventListener("input", (e) => {
   const el = e.target.closest("[data-block]");
   if (!el || el.dataset.locked === "1") return;
@@ -713,15 +719,23 @@ document.addEventListener("keydown", (e) => {
   }
 
   if (key === "b" || key === "i" || key === "u") {
-    if (previewClean || !handle) return;
-    // Take the key before Chrome's Bookmarks binding.
+    if (!handle) return;
     e.preventDefault();
     e.stopPropagation();
-    const el = toggleInline(key, docEl);
+    if (previewClean) {
+      bar.status.textContent = "turn off Preview clean to format";
+      return;
+    }
+    let el = toggleInline(key, docEl);
+    if (!el && lastBlock) {
+      lastBlock.focus();
+      el = toggleInline(key, docEl);
+    }
     if (!el) {
       bar.status.textContent = "click in a word, then Ctrl+B";
       return;
     }
+    lastBlock = el;
     el.classList.add("changed");
     const n = docEl.querySelectorAll("[data-block].changed").length;
     const name = { b: "bold", i: "italic", u: "underline" }[key];

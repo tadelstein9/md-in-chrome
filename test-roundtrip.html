@@ -135,14 +135,28 @@ lines.push("Ctrl+B wraps the word at the caret");
   const changed = toggleInline("b", document.body);
   contains("wraps em in strong", block.innerHTML, "<strong>em</strong>");
   ok("returns the block", changed === block, true);
-  // Second press unwraps.
-  const em = block.querySelector("strong").firstChild;
-  range.setStart(em, 1);
+  // Do not reset the range. Clearing it was the 0.3.2 failure.
+  const again = toggleInline("b", document.body);
+  ok("second press still has a selection", again === block, true);
+  absent("second press unwraps", block.innerHTML, "<strong>");
+  document.body.removeChild(block);
+}
+
+{
+  const block = document.createElement("div");
+  block.dataset.block = "1";
+  block.contentEditable = "true";
+  block.innerHTML = '<p>Hello <span class="md-ins">there</span> world</p>';
+  document.body.appendChild(block);
+  const p = block.firstChild;
+  const range = document.createRange();
+  range.setStart(p, 1);
   range.collapse(true);
+  const sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
   toggleInline("b", document.body);
-  absent("second press unwraps", block.innerHTML, "<strong>");
+  ok("caret between marks still wraps", /<(strong|b)>/i.test(block.innerHTML), true);
   document.body.removeChild(block);
 }
 

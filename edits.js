@@ -32,6 +32,30 @@ export function acceptedPlain(md) {
     .replace(/<[^>]+>/g, "");
 }
 
+/** Markdown with every change taken: insertions kept, struck words dropped,
+ *  and only the mark tags removed. Unlike acceptedPlain this leaves any other
+ *  HTML in the document alone, so a clean copy of a file carrying real inline
+ *  HTML comes out with that HTML still in it. */
+export function acceptedMarkdown(md) {
+  return String(md)
+    .replace(/<del\b[^>]*class="md-del"[^>]*>[\s\S]*?<\/del>/gi, "")
+    .replace(/<span\b[^>]*class="md-ins"[^>]*>([\s\S]*?)<\/span>/gi, "$1");
+}
+
+/** Sibling that receives the clean copy. foo.md → foo.clean.md, and an edit
+ *  copy resolves to the same place: foo.edit.md → foo.clean.md. */
+export function cleanCopyName(name) {
+  const n = String(name || "");
+  if (/\.clean\.(md|markdown|mdown|txt)$/i.test(n)) return n;
+  if (/\.edit\.(md|markdown|mdown|txt)$/i.test(n)) {
+    return n.replace(/\.edit\.(md|markdown|mdown|txt)$/i, ".clean.$1");
+  }
+  if (/\.(md|markdown|mdown|txt)$/i.test(n)) {
+    return n.replace(/(\.(md|markdown|mdown|txt))$/i, ".clean$1");
+  }
+  return n + ".clean.md";
+}
+
 /** Kept tokens as-is; new tokens red; dropped tokens red and struck. */
 export function diffToHtml(prev, next) {
   const a = tokenize(prev);

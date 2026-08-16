@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>md-in-chrome round trip</title>
+</head>
+<body>
+<pre id="out">running…</pre>
+<script type="module">
+// The trip a file actually makes: markdown -> HTML -> back to markdown.
+// turndown needs a real DOM, so this runs in a browser and not in node.
+// Open it in Chrome, or run ./run-browser-tests.sh.
+import { configureMarked, makeTurndown } from "./md.js";
+
+const marked = configureMarked();
+const turndown = makeTurndown();
+
+let pass = 0, fail = 0;
+const lines = [];
+
+function ok(name, got, want) {
+  if (got === want) { pass++; lines.push(`  ok    ${name}`); }
+  else {
+    fail++;
+    lines.push(`  FAIL  ${name}\n        got  ${JSON.stringify(got)}\n        want ${JSON.stringify(want)}`);
+  }
+}
+
+function contains(name, got, needle) {
+  if (String(got).includes(needle)) { pass++; lines.push(`  ok    ${name}`); }
+  else {
+    fail++;
+    lines.push(`  FAIL  ${name}\n        got  ${JSON.stringify(got)}\n        wanted to contain ${JSON.stringify(needle)}`);
+  }
+}
+
+function absent(name, got, needle) {
+  if (!String(got).includes(needle)) { pass++; lines.push(`  ok    ${name}`); }
+  else {
+    fail++;
+    lines.push(`  FAIL  ${name}\n        got  ${JSON.stringify(got)}\n        must not contain ${JSON.stringify(needle)}`);
+  }
+}
+
+/** One block through the same path save() uses: render, then convert back. */
+function trip(md) {
+  const host = document.createElement("div");
+  host.innerHTML = marked.parse(md);
+  return turndown.turndown(host.innerHTML).trim();
+}
+
+lines.push("edit marks survive the trip");
+
+// The regression. Until 2026-08-16 redDelete declared filter "DEL", turndown
+// compares a string filter to node.nodeName.toLowerCase(), the rule never
+// fired, and the GFM plugin wrote ~word~ instead. Those tildes then opened a
+// code fence on the next render and the struck words stopped being marks.
+const del = 'The <del class="md-del">old</del>new words.';
+contains("a struck word comes back as del", trip(del), '<del class="md-del">old</del>');
+absent("and never as a tilde", trip(del), "~");
+
+const ins = 'The <span class="md-ins">new</span> words.';
+contains("an insertion comes back as span", trip(ins), '<span class="md-ins">new</span>');
+
+const both = 'A <span class="md-ins">dog</span><del class="md-del">cat</del> sat.';
+contains("a replacement keeps the insertion", trip(both), '<span class="md-ins">dog</span>');
+contains("a replacement keeps the deletion", trip(both), '<del class="md-del">cat</del>');
+absent("a replacement writes no tildes", trip(both), "~");
+
+// Two trips, because the edit copy gets reopened and saved again.
+ok("a second trip changes nothing", trip(trip(both)), trip(both));
+
+// Chrome applies Ctrl+B and Ctrl+I to a contenteditable block itself. What
+// matters is whether the tags it leaves behind survive the trip to markdown.
+lines.push("what Ctrl+B and Ctrl+I leave behind");
+ok("b becomes bold", trip("A <b>bold</b> word."), "A **bold** word.");
+ok("strong becomes bold", trip("A <strong>bold</strong> word."), "A **bold** word.");
+ok("i becomes italic", trip("An <i>italic</i> word."), "An *italic* word.");
+ok("em becomes italic", trip("An <em>italic</em> word."), "An *italic* word.");
+ok("markdown bold survives", trip("A **bold** word."), "A **bold** word.");
+ok("markdown italic survives", trip("An *italic* word."), "An *italic* word.");
+// A struck word the writer applied is not an edit mark. This one goes through
+// the GFM rule, which is right — but it means two different strikethroughs.
+ok("s is markdown strikethrough", trip("A <s>struck</s> word."), "A ~struck~ word.");
+// Markdown has no underline. The tag itself goes into the file, and marked
+// renders it back, so Ctrl+U survives a save and a reopen.
+ok("u survives as literal html", trip("An <u>underlined</u> word."),
+   "An <u>underlined</u> word.");
+ok("u survives a second trip", trip(trip("An <u>underlined</u> word.")),
+   "An <u>underlined</u> word.");
+
+// The 2026-08-16 root cause: the marks were computed by comparing a block's
+// markdown source against its rendered text, so nothing carrying emphasis
+// could match itself. These hold the two sides in the same shape.
+lines.push("emphasis survives the mark pass");
+ok("bold reaches markdown unchanged", trip("A **bold** word."), "A **bold** word.");
+ok("a marked insertion keeps its markdown",
+   trip('A <span class="md-ins">**bold**</span> word.'),
+   'A <span class="md-ins">**bold**</span> word.');
+
+lines.push("the file keeps its shape");
+ok("tight list markers", trip("- one\n- two"), "- one\n- two");
+ok("numbered list", trip("1. one\n2. two"), "1. one\n2. two");
+ok("atx heading", trip("## A heading"), "## A heading");
+contains("a table stays a table", trip("| a | b |\n|---|---|\n| 1 | 2 |"), "| --- |");
+contains("a fenced block stays fenced", trip("```\ncode\n```"), "```");
+
+lines.push(`${pass} passed, ${fail} failed`);
+document.getElementById("out").textContent = lines.join("\n");
+document.title = fail ? "ROUNDTRIP FAIL" : "ROUNDTRIP PASS";
+</script>
+</body>
+</html>

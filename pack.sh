@@ -7,7 +7,7 @@ OUT="dist/md-in-chrome-${VER}"
 rm -rf dist
 mkdir -p "$OUT"
 # Ship only what Chrome needs — no git, no tests.
-cp manifest.json background.js blocks.js edits.js editor.html editor.js editor.css LICENSE README.md "$OUT/"
+cp manifest.json background.js blocks.js edits.js md.js saving.js editor.html editor.js editor.css LICENSE README.md "$OUT/"
 cp -r icons lib "$OUT/"
 (
   cd dist

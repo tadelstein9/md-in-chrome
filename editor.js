@@ -1,6 +1,5 @@
-import { marked } from "./lib/marked.esm.js";
-import TurndownService from "./lib/turndown.es.js";
-import { gfm } from "./lib/turndown-gfm.es.js";
+import { configureMarked, makeTurndown } from "./md.js";
+import { resolveTarget } from "./saving.js";
 import {
   splitBlocks,
   isLocked,
@@ -11,13 +10,21 @@ import {
   restorePrefix,
   normalizeNewlines,
 } from "./blocks.js";
-import { unmarkedBase, diffToHtml, editCopyName, originalName } from "./edits.js";
+import {
+  unmarkedBase,
+  diffToHtml,
+  editCopyName,
+  originalName,
+  acceptedMarkdown,
+  cleanCopyName,
+} from "./edits.js";
 
 const bar = {
   open: document.getElementById("open"),
   openFolder: document.getElementById("openfolder"),
   backFolder: document.getElementById("backfolder"),
   save: document.getElementById("save"),
+  saveClean: document.getElementById("saveclean"),
   markEdits: document.getElementById("markedits"),
   remark: document.getElementById("remark"),
   name: document.getElementById("name"),
@@ -39,53 +46,8 @@ const MD_EXT = /\.(md|markdown|mdown|txt)$/i;
 let folderStack = [];
 let browsingFolder = false;
 
-marked.setOptions({ gfm: true, breaks: false });
-
-const turndown = new TurndownService({
-  headingStyle: "atx",
-  bulletListMarker: "-",
-  codeBlockStyle: "fenced",
-  emDelimiter: "*",
-  strongDelimiter: "**",
-});
-
-// Without this, turndown has no idea what a table is and returns its cells as
-// a column of loose paragraphs. Editing one word in a table would destroy it.
-turndown.use(gfm);
-
-// Turndown pads a list marker out to three spaces — "-   one" where the file
-// said "- one". Every list in the document would rewrite itself on the first
-// save. Match the source instead.
-turndown.addRule("redInsert", {
-  filter(node) {
-    return node.nodeName === "SPAN" && node.classList && node.classList.contains("md-ins");
-  },
-  replacement(content, node) {
-    const cls = (node.className || "md-ins").trim() || "md-ins";
-    return `<span class="${cls}">${content}</span>`;
-  },
-});
-turndown.addRule("redDelete", {
-  filter: "DEL",
-  replacement(content) {
-    return `<del class="md-del">${content}</del>`;
-  },
-});
-
-turndown.addRule("tightListItem", {
-  filter: "li",
-  replacement(content, node, options) {
-    content = content.replace(/^\n+/, "").replace(/\n+$/, "\n").replace(/\n/gm, "\n  ");
-    let prefix = options.bulletListMarker + " ";
-    const parent = node.parentNode;
-    if (parent.nodeName === "OL") {
-      const start = parent.getAttribute("start");
-      const i = Array.prototype.indexOf.call(parent.children, node);
-      prefix = (start ? Number(start) + i : i + 1) + ". ";
-    }
-    return prefix + content + (node.nextSibling && !/\n$/.test(content) ? "\n" : "");
-  },
-});
+const marked = configureMarked();
+const turndown = makeTurndown();
 
 let handle = null;      // FileSystemFileHandle we write to (the edit copy)
 let sourceDir = null;   // folder that holds the original, when we have it
@@ -191,6 +153,7 @@ async function openHandle(h) {
   await remember(h);
   bar.name.textContent = crumb() ? `${crumb()} / ${h.name}` : h.name;
   bar.save.hidden = false;
+  bar.saveClean.hidden = false;
   document.getElementById("copyall").hidden = false;
   bar.markEdits.hidden = false;
   bar.markEdits.setAttribute("aria-pressed", markEditsOn ? "true" : "false");
@@ -236,6 +199,7 @@ function showFolderPane() {
   docEl.hidden = true;
   folderBrowser.hidden = false;
   bar.save.hidden = true;
+  bar.saveClean.hidden = true;
   document.getElementById("copyall").hidden = true;
   bar.markEdits.hidden = true;
   bar.remark.hidden = true;
@@ -337,7 +301,10 @@ bar.openFolder.addEventListener("click", async () => {
     return;
   }
   try {
-    const dir = await window.showDirectoryPicker();
+    // readwrite, or the handle comes back read-only and the edit copy cannot
+    // be created beside the original — the save then has to ask where to go,
+    // which is the whole reason for opening a folder in the first place.
+    const dir = await window.showDirectoryPicker({ mode: "readwrite" });
     folderStack = [dir];
     showFolderPane();
     await listFolder();
@@ -360,6 +327,17 @@ folderGoForm.addEventListener("submit", async (e) => {
 // ------------------------------------------------------------------ rendering
 
 /** Current wording: ignore struck text so a second pass does not re-diff it. */
+/** The block as markdown, with any struck words dropped — the same shape as
+ *  basePlain[i], so the two can be diffed against each other. */
+function currentMarkdown(el, i) {
+  const clone = el.cloneNode(true);
+  clone.querySelectorAll("del").forEach((n) => n.remove());
+  clone.querySelectorAll("span.md-ins").forEach((n) => {
+    n.replaceWith(...n.childNodes);
+  });
+  return toMarkdown(clone, blocks[i] || "");
+}
+
 function currentPlain(el) {
   const clone = el.cloneNode(true);
   clone.querySelectorAll("del").forEach((n) => n.remove());
@@ -508,32 +486,35 @@ function toMarkdown(el, sourceBlock) {
 }
 
 async function targetForSave() {
-  const copyName = editCopyName(openedName || handle.name);
-  if (copyName === handle.name) return handle;
+  return targetForName(editCopyName(openedName || handle.name));
+}
 
-  if (sourceDir) {
-    const copy = await sourceDir.getFileHandle(copyName, { create: true });
-    const opts = { mode: "readwrite" };
-    if ((await copy.queryPermission(opts)) !== "granted" &&
-        (await copy.requestPermission(opts)) !== "granted") {
-      throw new Error("permission refused for the edit copy");
-    }
-    return copy;
-  }
-
-  if (typeof window.showSaveFilePicker !== "function") {
-    throw new Error("open the file from a folder so the edit copy can sit beside it");
-  }
-  return window.showSaveFilePicker({
-    suggestedName: copyName,
-    types: [{
-      description: "Markdown",
-      accept: {
-        "text/markdown": [".md", ".markdown", ".mdown"],
-        "text/plain": [".txt", ".md"],
-      },
-    }],
+// Resolve a sibling to write, by name. The edit copy and the clean copy take
+// the same route: beside the original when we have the folder, otherwise ask.
+async function targetForName(copyName) {
+  const { route, target } = await resolveTarget({
+    copyName,
+    handle,
+    sourceDir,
+    note: (msg) => { bar.status.textContent = msg; },
+    pick: (name) => {
+      if (typeof window.showSaveFilePicker !== "function") {
+        throw new Error("open the file from a folder so the copy can sit beside it");
+      }
+      return window.showSaveFilePicker({
+        suggestedName: name,
+        types: [{
+          description: "Markdown",
+          accept: {
+            "text/markdown": [".md", ".markdown", ".mdown"],
+            "text/plain": [".txt", ".md"],
+          },
+        }],
+      });
+    },
   });
+  console.log("[md] save route:", route, "->", target && target.name);
+  return target;
 }
 
 async function save() {
@@ -581,6 +562,45 @@ async function save() {
 }
 
 bar.save.addEventListener("click", save);
+
+// The third file. The original is what the writer submitted, the edit copy is
+// what the reviewer marked, and this one is the text with every change taken:
+// insertions kept, struck words gone, no marks left to read around. It is the
+// copy that gets published, so it never overwrites either of the other two.
+async function saveClean() {
+  if (!handle) return;
+  if (markEditsOn) {
+    for (const el of docEl.querySelectorAll("[data-block].changed")) {
+      applyEditMark(el);
+    }
+  }
+  const changed = {};
+  for (const el of docEl.querySelectorAll("[data-block].changed")) {
+    const i = Number(el.dataset.block);
+    changed[i] = toMarkdown(el, blocks[i] || "");
+  }
+
+  bar.status.textContent = "saving clean copy…";
+  try {
+    const { text } = assemble(blocks, changed);
+    const clean = acceptedMarkdown(text);
+    const name = cleanCopyName(openedName || handle.name);
+    const dest = await targetForName(name);
+    const stream = await dest.createWritable();
+    await stream.write(clean);
+    await stream.close();
+    bar.status.textContent =
+      `saved ${dest.name} · every change taken · ${openedName} unchanged`;
+  } catch (err) {
+    if (err.name === "AbortError") {
+      bar.status.textContent = "clean copy cancelled";
+      return;
+    }
+    bar.status.textContent = `FAILED: ${err.message}`;
+  }
+}
+
+bar.saveClean.addEventListener("click", saveClean);
 
 // Put the whole document on the clipboard.
 //

@@ -104,6 +104,20 @@ That note lives only in the edit copy. It is for the professional reader. A late
 
 **Copy whole document** or **Ctrl+A** puts clean HTML and plain text on the clipboard. Paste into Substack, Word, or LibreOffice. The editor’s own markup does not ride along.
 
+### 7. Save the clean copy
+
+**Save clean copy** writes `name.clean.md` — the same text with every change taken. Insertions kept, struck words gone, no marks left to read around.
+
+That gives you three files and each one has a job:
+
+| File | Who reads it |
+|---|---|
+| `chapter.md` | the original. What the writer handed in. Never written to. |
+| `chapter.edit.md` | the marked copy. What the reviewer reads and approves. |
+| `chapter.clean.md` | the clean copy. What gets published. |
+
+Saving the clean copy never touches the other two.
+
 ## What 0.2.5 adds
 
 | You do this | What happens |
@@ -113,6 +127,7 @@ That note lives only in the edit copy. It is for the professional reader. A late
 | Save | Writes `name.edit.md`. The original file does not change. |
 | Open an edit copy next to its original | Struck originals come back onto the page. Save keeps them. |
 | Remark | Inserts `[Editor: …]` in the edit copy. |
+| Save clean copy | Writes `name.clean.md` with every change taken. |
 
 ## Requires
 
@@ -126,11 +141,17 @@ Your file never leaves your computer. The page makes no network requests. It onl
 ```bash
 node test-blocks.mjs
 node test-edits.mjs
+node test-saving.mjs
+./run-browser-tests.sh
 ```
 
 `test-blocks.mjs` covers the guarantee: split, edit one block, every other block returns identical. Also CRLF normalization.
 
-`test-edits.mjs` covers the red marks: insertions, struck deletions, the edit-copy name, and a second pass that does not eat the struck words.
+`test-edits.mjs` covers the red marks: insertions, struck deletions, the edit-copy name, the clean-copy name, and a second pass that does not eat the struck words.
+
+`test-saving.mjs` covers where a copy gets written: the file already open, a sibling in a folder you may write in, a folder that is read-only, a folder that throws, and no folder at all. That logic lived inside `editor.js` wrapped around live browser handles until 2026-08-16, so it only ran when somebody clicked.
+
+`run-browser-tests.sh` covers the trip a file actually makes — markdown to HTML and back. Those rules need a real DOM, so it serves `test-roundtrip.html` and runs it in headless Chrome. Nothing reached that path until 2026-08-16, which is how a `<del>` rule that never fired shipped twice.
 
 ## Bundled (offline)
 

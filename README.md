@@ -1,6 +1,6 @@
 # Markdown in Chrome
 
-**Version 0.3.0.** Open a markdown file in Chrome or Edge. Read it the way it is meant to look. Fix a sentence while you are looking at it. Save writes an **edit copy** beside the original. The original file does not change. A clean copy and a PDF sit next to it.
+**Version 0.3.1.** Open a markdown file in Chrome or Edge. Read it the way it is meant to look. Fix a sentence while you are looking at it. Save writes an **edit copy** beside the original. The original file does not change. A clean copy and a PDF sit next to it.
 
 The edit copy holds every red change, every struck original word, and every editor remark. A file that is already `name.edit.md` stays that file. The program never writes `name.edit.edit.md`.
 
@@ -162,6 +162,7 @@ node test-blocks.mjs
 node test-edits.mjs
 node test-saving.mjs
 node test-pdf.mjs
+node test-format.mjs
 ./run-browser-tests.sh
 ```
 

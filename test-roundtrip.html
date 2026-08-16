@@ -12,6 +12,7 @@
 // Open it in Chrome, or run ./run-browser-tests.sh.
 import { configureMarked, makeTurndown } from "./md.js";
 import { decideMarks } from "./edits.js";
+import { toggleInline } from "./format.js";
 
 const marked = configureMarked();
 const turndown = makeTurndown();
@@ -114,6 +115,36 @@ const reworded = decideMarks({
 ok("a wording change does rebuild", reworded.rebuild, true);
 contains("and keeps the new word", reworded.html, "phrase");
 absent("and is not the original markdown", reworded.html, "A **bold** word.");
+
+lines.push("Ctrl+B wraps the word at the caret");
+{
+  const block = document.createElement("div");
+  block.dataset.block = "0";
+  block.contentEditable = "true";
+  const p = document.createElement("p");
+  p.textContent = "One em dash";
+  block.appendChild(p);
+  document.body.appendChild(block);
+  const text = p.firstChild;
+  const range = document.createRange();
+  range.setStart(text, 5);
+  range.collapse(true);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  const changed = toggleInline("b", document.body);
+  contains("wraps em in strong", block.innerHTML, "<strong>em</strong>");
+  ok("returns the block", changed === block, true);
+  // Second press unwraps.
+  const em = block.querySelector("strong").firstChild;
+  range.setStart(em, 1);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  toggleInline("b", document.body);
+  absent("second press unwraps", block.innerHTML, "<strong>");
+  document.body.removeChild(block);
+}
 
 lines.push("the file keeps its shape");
 ok("tight list markers", trip("- one\n- two"), "- one\n- two");

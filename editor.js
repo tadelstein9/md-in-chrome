@@ -19,6 +19,7 @@ import {
   decideMarks,
 } from "./edits.js";
 import { pdfFileName, buildPdfFromMarkdown } from "./pdf.js";
+import { toggleInline } from "./format.js";
 
 const bar = {
   open: document.getElementById("open"),
@@ -712,19 +713,22 @@ document.addEventListener("keydown", (e) => {
   }
 
   if (key === "b" || key === "i" || key === "u") {
-    if (previewClean) return;
-    const el = document.activeElement && document.activeElement.closest
-      ? document.activeElement.closest("[data-block]")
-      : null;
-    if (!el || el.dataset.locked === "1") return;
+    if (previewClean || !handle) return;
+    // Take the key before Chrome's Bookmarks binding.
     e.preventDefault();
-    const cmd = { b: "bold", i: "italic", u: "underline" }[key];
-    document.execCommand(cmd);
+    e.stopPropagation();
+    const el = toggleInline(key, docEl);
+    if (!el) {
+      bar.status.textContent = "click in a word, then Ctrl+B";
+      return;
+    }
     el.classList.add("changed");
     const n = docEl.querySelectorAll("[data-block].changed").length;
-    bar.status.textContent = n ? `${n} block${n > 1 ? "s" : ""} changed` : "no changes";
+    const name = { b: "bold", i: "italic", u: "underline" }[key];
+    bar.status.textContent =
+      `${name} · ${n} block${n > 1 ? "s" : ""} changed`;
   }
-});
+}, true);
 
 // ----------------------------------------------------------------- clipboard
 //

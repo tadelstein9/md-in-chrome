@@ -2,7 +2,9 @@
 import {
   tokenize, unmarkedBase, acceptedPlain, diffToHtml, escapeHtml,
   editCopyName, originalName, acceptedMarkdown, cleanCopyName,
+  visiblePlain, decideMarks,
 } from "./edits.js";
+import { assemble } from "./blocks.js";
 
 let pass = 0, fail = 0;
 function ok(name, got, want) {
@@ -70,6 +72,55 @@ ok("acceptedPlain would have eaten them",
   acceptedPlain('A <br> and an <img src="x.png"> stay.'), "A  and an  stay.");
 ok("no marks, nothing changes",
   acceptedMarkdown("# A heading\n\nPlain text."), "# A heading\n\nPlain text.");
+ok("drops an editor remark",
+  acceptedMarkdown('Hello <span class="md-ins md-remark"> [Editor: cut this] </span>there.'),
+  "Hello there.");
+
+console.log("visiblePlain");
+ok("strips bold markers", visiblePlain("A **bold** word."), "A bold word.");
+ok("strips italic markers", visiblePlain("An *italic* word."), "An italic word.");
+ok("strips a heading hash", visiblePlain("## A heading"), "A heading");
+ok("matches rendered text", visiblePlain("A **bold** word."), "A bold word.");
+
+console.log("decideMarks — formatting must not eat a save");
+{
+  const source = "A **bold** word.";
+  const formatOnly = decideMarks({
+    sourceMd: source,
+    currentPlain: "A bold word.",
+    currentHtml: "<p>A <strong>bold</strong> word.</p>",
+  });
+  ok("Ctrl+B does not rebuild", formatOnly.rebuild, false);
+  ok("and keeps the tags", formatOnly.html, "<p>A <strong>bold</strong> word.</p>");
+
+  const reworded = decideMarks({
+    sourceMd: source,
+    currentPlain: "A bold phrase.",
+    currentHtml: "<p>A <strong>bold</strong> phrase.</p>",
+  });
+  ok("a wording change does rebuild", reworded.rebuild, true);
+  const hasNew = reworded.html.includes("phrase");
+  const hasMark = /md-ins|md-del/.test(reworded.html);
+  ok("the new word is in the marks", hasNew, true);
+  ok("the marks are actually marks", hasMark, true);
+
+  // The 2026-08-16 failure: after the mark pass, assemble wrote a file
+  // byte-identical to the original. This is that case, as a test.
+  const original = [
+    "# Colophon Works",
+    "Open a markdown file in Chrome and read it.",
+  ];
+  const decision = decideMarks({
+    sourceMd: original[1],
+    currentPlain: "Open a markdown file in Chrome so you can read it.",
+    currentHtml: "<p>Open a markdown file in Chrome so you can read it.</p>",
+  });
+  ok("a reworded line is rebuilt", decision.rebuild, true);
+  const { text } = assemble(original, { 1: decision.html });
+  ok("the saved file is not the original", text === original.join("\n\n") + "\n", false);
+  ok("the saved file has the new wording",
+    acceptedMarkdown(text).includes("so you can"), true);
+}
 
 console.log(`${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

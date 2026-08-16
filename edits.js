@@ -24,6 +24,45 @@ export function unmarkedBase(md) {
     .replace(/<[^>]+>/g, "");
 }
 
+/** Visible words. Markdown emphasis and HTML are stripped so a paragraph
+ *  that carries **bold** can be compared to the text on the page. The mark
+ *  pass used to compare source against rendered text, so no emphasized
+ *  block could match itself, and a save wrote the original back. */
+export function visiblePlain(md) {
+  let s = unmarkedBase(md);
+  s = s.replace(/```[\s\S]*?```/g, " ");
+  s = s.replace(/`([^`]+)`/g, "$1");
+  s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, "");
+  s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "$1");
+  s = s.replace(/__([^_]+)__/g, "$1");
+  s = s.replace(/\*([^*]+)\*/g, "$1");
+  s = s.replace(/_([^_]+)_/g, "$1");
+  s = s.replace(/<\/?u>/gi, "");
+  s = s.replace(/^#{1,6}\s+/gm, "");
+  s = s.replace(/^>\s?/gm, "");
+  s = s.replace(/^[-*]\s+/gm, "");
+  s = s.replace(/^\d+\.\s+/gm, "");
+  return s.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Decide whether to rebuild a block as red marks.
+ *
+ * Wording unchanged (Ctrl+B / I / U, or a click-out): keep the HTML the
+ * browser already has, including its tags. Wording changed: word-diff the
+ * visible text, not the markdown source. Diffing source against rendered
+ * text is what turned a real edit file back into the original.
+ */
+export function decideMarks({ sourceMd, currentPlain, currentHtml }) {
+  const prev = visiblePlain(sourceMd);
+  const now = visiblePlain(currentPlain);
+  if (now === prev) {
+    return { rebuild: false, html: currentHtml };
+  }
+  return { rebuild: true, html: diffToHtml(prev, now) };
+}
+
 /** Text as it stands now: insertions kept, struck words dropped. */
 export function acceptedPlain(md) {
   return String(md)
@@ -38,6 +77,7 @@ export function acceptedPlain(md) {
  *  HTML comes out with that HTML still in it. */
 export function acceptedMarkdown(md) {
   return String(md)
+    .replace(/<span\b[^>]*class="[^"]*\bmd-remark\b[^"]*"[^>]*>[\s\S]*?<\/span>/gi, "")
     .replace(/<del\b[^>]*class="md-del"[^>]*>[\s\S]*?<\/del>/gi, "")
     .replace(/<span\b[^>]*class="md-ins"[^>]*>([\s\S]*?)<\/span>/gi, "$1");
 }

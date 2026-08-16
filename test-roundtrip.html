@@ -11,6 +11,7 @@
 // turndown needs a real DOM, so this runs in a browser and not in node.
 // Open it in Chrome, or run ./run-browser-tests.sh.
 import { configureMarked, makeTurndown } from "./md.js";
+import { decideMarks } from "./edits.js";
 
 const marked = configureMarked();
 const turndown = makeTurndown();
@@ -97,6 +98,22 @@ ok("bold reaches markdown unchanged", trip("A **bold** word."), "A **bold** word
 ok("a marked insertion keeps its markdown",
    trip('A <span class="md-ins">**bold**</span> word.'),
    'A <span class="md-ins">**bold**</span> word.');
+
+const formatOnly = decideMarks({
+  sourceMd: "A **bold** word.",
+  currentPlain: "A bold word.",
+  currentHtml: "<p>A <strong>bold</strong> word.</p>",
+});
+ok("format-only does not rebuild", formatOnly.rebuild, false);
+
+const reworded = decideMarks({
+  sourceMd: "A **bold** word.",
+  currentPlain: "A bold phrase.",
+  currentHtml: "<p>A <strong>bold</strong> phrase.</p>",
+});
+ok("a wording change does rebuild", reworded.rebuild, true);
+contains("and keeps the new word", reworded.html, "phrase");
+absent("and is not the original markdown", reworded.html, "A **bold** word.");
 
 lines.push("the file keeps its shape");
 ok("tight list markers", trip("- one\n- two"), "- one\n- two");

@@ -125,6 +125,12 @@ blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid var(--ru
 }
 .md-remark, span.md-remark { color: #c41e3a; font-style: italic; }
 
+/* Clean preview: the accepted page, marks still in the DOM and on disk. */
+#doc.preview-clean del.md-del { display: none; }
+#doc.preview-clean .md-ins { color: inherit; }
+#doc.preview-clean .md-remark { display: none; }
+#doc.preview-clean .block.changed { border-left-color: transparent; }
+
 #bar button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 
 #doc .block[data-locked="1"] {

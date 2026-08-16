@@ -1,6 +1,6 @@
 # Markdown in Chrome
 
-**Version 0.2.5.** Open a markdown file in Chrome or Edge. Read it the way it is meant to look. Fix a sentence while you are looking at it. Save writes an **edit copy** beside the original. The original file does not change.
+**Version 0.3.0.** Open a markdown file in Chrome or Edge. Read it the way it is meant to look. Fix a sentence while you are looking at it. Save writes an **edit copy** beside the original. The original file does not change. A clean copy and a PDF sit next to it.
 
 The edit copy holds every red change, every struck original word, and every editor remark. A file that is already `name.edit.md` stays that file. The program never writes `name.edit.edit.md`.
 
@@ -118,7 +118,23 @@ That gives you three files and each one has a job:
 
 Saving the clean copy never touches the other two.
 
-## What 0.2.5 adds
+### 8. Preview the clean page
+
+**Preview clean** shows the accepted page — insertions kept, struck words gone — without writing a file and without taking the marks off the edit copy. Click it again to see the marks.
+
+That is how you tell what a reader will get before anyone accepts the changes.
+
+### 9. Save a PDF
+
+**Save PDF** writes `name.pdf` in the same folder. It is a file. It is not the print dialog. The words come from the clean page, so the office gets what will be published.
+
+`chapter.md`, `chapter.edit.md`, and `chapter.clean.md` all resolve to `chapter.pdf`.
+
+### 10. Bold, italic, underline
+
+**Ctrl+B**, **Ctrl+I**, and **Ctrl+U** (Cmd on a Mac) apply while you type. A paragraph whose wording did not change keeps those tags on save. A paragraph whose wording did change is marked in red; the emphasis on that paragraph is rebuilt as words.
+
+## What 0.3.0 adds
 
 | You do this | What happens |
 |---|---|
@@ -128,6 +144,9 @@ Saving the clean copy never touches the other two.
 | Open an edit copy next to its original | Struck originals come back onto the page. Save keeps them. |
 | Remark | Inserts `[Editor: …]` in the edit copy. |
 | Save clean copy | Writes `name.clean.md` with every change taken. |
+| Preview clean | Shows the accepted page. Marks stay in the edit copy. |
+| Save PDF | Writes `name.pdf`. A file, not a print sheet. |
+| Ctrl+B / I / U | Bold, italic, underline. They survive a save when the wording did not change. |
 
 ## Requires
 
@@ -142,16 +161,21 @@ Your file never leaves your computer. The page makes no network requests. It onl
 node test-blocks.mjs
 node test-edits.mjs
 node test-saving.mjs
+node test-pdf.mjs
 ./run-browser-tests.sh
 ```
 
 `test-blocks.mjs` covers the guarantee: split, edit one block, every other block returns identical. Also CRLF normalization.
 
-`test-edits.mjs` covers the red marks: insertions, struck deletions, the edit-copy name, the clean-copy name, and a second pass that does not eat the struck words.
+`test-edits.mjs` covers the red marks, the three file names, and the mark pass: formatting-only does not rebuild a paragraph; a wording change does, and the saved text is not the original. That last case is the save that wrote a file identical to the source on 2026-08-16.
 
-`test-saving.mjs` covers where a copy gets written: the file already open, a sibling in a folder you may write in, a folder that is read-only, a folder that throws, and no folder at all. That logic lived inside `editor.js` wrapped around live browser handles until 2026-08-16, so it only ran when somebody clicked.
+`test-saving.mjs` covers where a copy gets written: the file already open, a sibling in a folder you may write in, a folder that is read-only, a folder that throws, and no folder at all.
 
-`run-browser-tests.sh` covers the trip a file actually makes — markdown to HTML and back. Those rules need a real DOM, so it serves `test-roundtrip.html` and runs it in headless Chrome. Nothing reached that path until 2026-08-16, which is how a `<del>` rule that never fired shipped twice.
+`test-pdf.mjs` writes a PDF to a temp file, reads it back, and checks that it starts with `%PDF-` and holds the title as text. `window.print()` is not part of this path.
+
+`run-browser-tests.sh` covers the trip a file actually makes — markdown to HTML and back. Those rules need a real DOM, so it serves `test-roundtrip.html` and runs it in headless Chrome.
+
+The mark pass rebuilds a writer's paragraph. Do not change it without a test that would have failed on 2026-08-16. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Bundled (offline)
 
@@ -164,6 +188,11 @@ Nothing is fetched at runtime.
 
 - Linux terminal version (Python + pandoc): [edit-in-chrome](https://github.com/tadelstein9/edit-in-chrome)
 - Essay: [Editing an AI model’s markdown…](https://tomadelstein.substack.com/p/editing-an-ai-models-markdown-md)
+
+## Privacy
+
+Your file never leaves the machine. [PRIVACY.md](PRIVACY.md) is the
+page the Chrome Web Store needs.
 
 ## License
 

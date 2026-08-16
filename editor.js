@@ -12,12 +12,13 @@ import {
 } from "./blocks.js";
 import {
   unmarkedBase,
-  diffToHtml,
   editCopyName,
   originalName,
   acceptedMarkdown,
   cleanCopyName,
+  decideMarks,
 } from "./edits.js";
+import { pdfFileName, buildPdfFromMarkdown } from "./pdf.js";
 
 const bar = {
   open: document.getElementById("open"),
@@ -25,6 +26,8 @@ const bar = {
   backFolder: document.getElementById("backfolder"),
   save: document.getElementById("save"),
   saveClean: document.getElementById("saveclean"),
+  savePdf: document.getElementById("savepdf"),
+  preview: document.getElementById("preview"),
   markEdits: document.getElementById("markedits"),
   remark: document.getElementById("remark"),
   name: document.getElementById("name"),
@@ -56,6 +59,7 @@ let blocks = [];        // every block as it came off disk
 let initial = [];       // each block's HTML as first rendered
 let basePlain = [];     // unmarked original text of each block
 let markEditsOn = true;
+let previewClean = false;
 
 // ---------------------------------------------------------------- recent files
 //
@@ -154,6 +158,8 @@ async function openHandle(h) {
   bar.name.textContent = crumb() ? `${crumb()} / ${h.name}` : h.name;
   bar.save.hidden = false;
   bar.saveClean.hidden = false;
+  bar.savePdf.hidden = false;
+  bar.preview.hidden = false;
   document.getElementById("copyall").hidden = false;
   bar.markEdits.hidden = false;
   bar.markEdits.setAttribute("aria-pressed", markEditsOn ? "true" : "false");
@@ -200,9 +206,12 @@ function showFolderPane() {
   folderBrowser.hidden = false;
   bar.save.hidden = true;
   bar.saveClean.hidden = true;
+  bar.savePdf.hidden = true;
+  bar.preview.hidden = true;
   document.getElementById("copyall").hidden = true;
   bar.markEdits.hidden = true;
   bar.remark.hidden = true;
+  setPreview(false);
   bar.backFolder.hidden = true;
   browsingFolder = true;
 }
@@ -326,18 +335,7 @@ folderGoForm.addEventListener("submit", async (e) => {
 
 // ------------------------------------------------------------------ rendering
 
-/** Current wording: ignore struck text so a second pass does not re-diff it. */
-/** The block as markdown, with any struck words dropped — the same shape as
- *  basePlain[i], so the two can be diffed against each other. */
-function currentMarkdown(el, i) {
-  const clone = el.cloneNode(true);
-  clone.querySelectorAll("del").forEach((n) => n.remove());
-  clone.querySelectorAll("span.md-ins").forEach((n) => {
-    n.replaceWith(...n.childNodes);
-  });
-  return toMarkdown(clone, blocks[i] || "");
-}
-
+/** Visible words on the page, struck text ignored. */
 function currentPlain(el) {
   const clone = el.cloneNode(true);
   clone.querySelectorAll("del").forEach((n) => n.remove());
@@ -351,11 +349,31 @@ function applyEditMark(el) {
   if (host && ["UL", "OL", "TABLE", "PRE"].includes(host.tagName)) return;
   const now = currentPlain(el);
   const prev = basePlain[i] || "";
-  if (now === prev) return;
-  const html = diffToHtml(prev, now);
+  const currentHtml = host ? host.innerHTML : el.innerHTML;
+  const { rebuild, html } = decideMarks({
+    sourceMd: prev,
+    currentPlain: now,
+    currentHtml,
+  });
+  if (!rebuild) return;
   if (host) host.innerHTML = html;
   else el.innerHTML = `<p>${html}</p>`;
   el.classList.add("changed");
+}
+
+function setPreview(on) {
+  previewClean = on;
+  docEl.classList.toggle("preview-clean", on);
+  if (bar.preview) {
+    bar.preview.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  for (const el of docEl.querySelectorAll("[data-block]")) {
+    if (el.dataset.locked === "1") continue;
+    el.contentEditable = on ? "false" : "true";
+  }
+  if (on) {
+    bar.status.textContent = "clean preview — marks still on disk, not on this view";
+  }
 }
 
 /** When the open file is an edit copy, paint struck originals from the sibling. */
@@ -415,6 +433,7 @@ function render(text) {
     basePlain[i] = unmarkedBase(block);
     docEl.appendChild(el);
   });
+  setPreview(false);
 }
 
 docEl.addEventListener("input", (e) => {
@@ -440,6 +459,10 @@ bar.markEdits.addEventListener("click", () => {
   bar.status.textContent = markEditsOn
     ? "new words in red; replaced words stay struck in red"
     : "edit marks off";
+});
+
+bar.preview.addEventListener("click", () => {
+  setPreview(!previewClean);
 });
 
 bar.remark.addEventListener("click", () => {
@@ -491,7 +514,7 @@ async function targetForSave() {
 
 // Resolve a sibling to write, by name. The edit copy and the clean copy take
 // the same route: beside the original when we have the folder, otherwise ask.
-async function targetForName(copyName) {
+async function targetForName(copyName, types) {
   const { route, target } = await resolveTarget({
     copyName,
     handle,
@@ -503,7 +526,7 @@ async function targetForName(copyName) {
       }
       return window.showSaveFilePicker({
         suggestedName: name,
-        types: [{
+        types: types || [{
           description: "Markdown",
           accept: {
             "text/markdown": [".md", ".markdown", ".mdown"],
@@ -602,6 +625,47 @@ async function saveClean() {
 
 bar.saveClean.addEventListener("click", saveClean);
 
+const PDF_TYPES = [{
+  description: "PDF",
+  accept: { "application/pdf": [".pdf"] },
+}];
+
+async function savePdf() {
+  if (!handle) return;
+  if (markEditsOn) {
+    for (const el of docEl.querySelectorAll("[data-block].changed")) {
+      applyEditMark(el);
+    }
+  }
+  const changed = {};
+  for (const el of docEl.querySelectorAll("[data-block].changed")) {
+    const i = Number(el.dataset.block);
+    changed[i] = toMarkdown(el, blocks[i] || "");
+  }
+
+  bar.status.textContent = "saving PDF…";
+  try {
+    const { text } = assemble(blocks, changed);
+    const clean = acceptedMarkdown(text);
+    const bytes = buildPdfFromMarkdown(clean);
+    const name = pdfFileName(openedName || handle.name);
+    const dest = await targetForName(name, PDF_TYPES);
+    const stream = await dest.createWritable();
+    await stream.write(bytes);
+    await stream.close();
+    bar.status.textContent =
+      `saved ${dest.name} · ${bytes.length} bytes · ${openedName} unchanged`;
+  } catch (err) {
+    if (err.name === "AbortError") {
+      bar.status.textContent = "PDF cancelled";
+      return;
+    }
+    bar.status.textContent = `FAILED: ${err.message}`;
+  }
+}
+
+bar.savePdf.addEventListener("click", savePdf);
+
 // Put the whole document on the clipboard.
 //
 // Selecting it does not work and cannot be made to: every paragraph is its own
@@ -644,6 +708,21 @@ document.addEventListener("keydown", (e) => {
   if (key === "a") {
     e.preventDefault();
     copyWholeDocument();
+    return;
+  }
+
+  if (key === "b" || key === "i" || key === "u") {
+    if (previewClean) return;
+    const el = document.activeElement && document.activeElement.closest
+      ? document.activeElement.closest("[data-block]")
+      : null;
+    if (!el || el.dataset.locked === "1") return;
+    e.preventDefault();
+    const cmd = { b: "bold", i: "italic", u: "underline" }[key];
+    document.execCommand(cmd);
+    el.classList.add("changed");
+    const n = docEl.querySelectorAll("[data-block].changed").length;
+    bar.status.textContent = n ? `${n} block${n > 1 ? "s" : ""} changed` : "no changes";
   }
 });
 

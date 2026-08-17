@@ -149,20 +149,6 @@ That is how you tell what a reader will get before anyone accepts the changes.
 
 `$E=mc^2$` is inline math. GitHub callouts (`> [!NOTE]`, TIP, IMPORTANT, WARNING, CAUTION) show as labeled blocks.
 
-## What 0.3.0 adds
-
-| You do this | What happens |
-|---|---|
-| Open a folder | Hidden names (`.grok`) appear in the list. Type a child name to enter it. |
-| Change a sentence and click out | New words in red. Replaced words stay, red, with a line through them. |
-| Save | Writes `name.edit.md`. The original file does not change. |
-| Open an edit copy next to its original | Struck originals come back onto the page. Save keeps them. |
-| Remark | Inserts `[Editor: …]` in the edit copy. |
-| Save clean copy | Writes `name.clean.md` with every change taken. |
-| Preview clean | Shows the accepted page. Marks stay in the edit copy. |
-| Save PDF | Writes `name.pdf`. A file, not a print sheet. |
-| Ctrl+B / I / U | Bold, italic, underline. They survive a save when the wording did not change. |
-
 ## Requires
 
 - **Chrome** or **Edge** (File System Access API — write back to disk).

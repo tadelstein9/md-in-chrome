@@ -1,10 +1,10 @@
 # Markdown in Chrome
 
-**Version 0.3.3.** Open a markdown file in Chrome or Edge. Read it the way it is meant to look. Fix a sentence while you are looking at it. Save writes an **edit copy** beside the original. The original file does not change. A clean copy and a PDF sit next to it.
+**Version 0.3.3.** A Chrome extension that opens a markdown file, renders it on a page you can type into, and writes your edits back to disk. No terminal, no Python, nothing to install but the extension.
 
-The edit copy holds every red change, every struck original word, and every editor remark. A file that is already `name.edit.md` stays that file. The program never writes `name.edit.edit.md`.
+In 2004 John Gruber conceived of markdown so a person could read a file as-is, without it looking marked up. Twenty-two years later AI models hand you `.md` files full of pound signs and pipe tables, and it takes two programs to deal with one file: one that shows the formatting but doesn't let you edit it, and another that lets you write but hides the formatting. This extension is both of them.
 
-Only the paragraphs you touch are rewritten. Everything else is written out **character for character** as it arrived. Change one word, get a one-word diff.
+When you save, it writes a copy beside the original and leaves the original alone, so you can verify your edits against the file you started with. The program rewrites only the paragraphs you touched. Every other block comes back **character for character**, exactly as it arrived. Change one word, get a one-word diff.
 
 **Keep a copy of anything you care about before you edit it here.** This program writes to disk.
 

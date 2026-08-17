@@ -19,7 +19,7 @@ import {
   decideMarks,
 } from "./edits.js";
 import { pdfFileName, buildPdfFromMarkdown } from "./pdf.js";
-import { toggleInline } from "./format.js";
+import { toggleInline, wrapLink, safeHref } from "./format.js";
 
 const bar = {
   open: document.getElementById("open"),
@@ -438,6 +438,27 @@ function render(text) {
   setPreview(false);
 }
 
+// Regular click stays in the page. Ctrl/Cmd+click opens the address.
+docEl.addEventListener("click", (e) => {
+  const a = e.target.closest && e.target.closest("a[href]");
+  if (!a || !docEl.contains(a)) return;
+  if (!(e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    return;
+  }
+  e.preventDefault();
+  const href = safeHref(a.getAttribute("href"));
+  if (!href) {
+    bar.status.textContent = "that address is not a link this page will open";
+    return;
+  }
+  if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
+    chrome.tabs.create({ url: href });
+  } else {
+    window.open(href, "_blank", "noopener");
+  }
+});
+
 docEl.addEventListener("focusin", (e) => {
   const el = e.target.closest && e.target.closest("[data-block]");
   if (el) lastBlock = el;
@@ -718,6 +739,26 @@ document.addEventListener("keydown", (e) => {
     return;
   }
 
+  if (key === "k") {
+    if (!handle) return;
+    e.preventDefault();
+    if (previewClean) {
+      bar.status.textContent = "turn off Preview clean to format";
+      return;
+    }
+    const href = window.prompt("Link address (https://…)");
+    if (href == null || !String(href).trim()) return;
+    const el = wrapLink(href, docEl);
+    if (!el) {
+      bar.status.textContent = "click in a word, then Ctrl+K — that address was not a link";
+      return;
+    }
+    lastBlock = el;
+    el.classList.add("changed");
+    bar.status.textContent = `link · ${el.querySelectorAll("a").length ? safeHref(href) : href}`;
+    return;
+  }
+
   if (key === "b" || key === "i" || key === "u") {
     if (!handle) return;
     e.preventDefault();
@@ -756,8 +797,9 @@ const KEEP = {
   IMG: ["src", "alt"],
   TD: ["colspan", "rowspan"],
   TH: ["colspan", "rowspan"],
-  SPAN: ["class"],
+  SPAN: ["class", "data-md"],
   DEL: ["class"],
+  ASIDE: ["class", "data-kind"],
 };
 
 // Strip everything the editor added, keep what is the document.

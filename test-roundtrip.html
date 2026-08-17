@@ -160,6 +160,24 @@ lines.push("Ctrl+B wraps the word at the caret");
   document.body.removeChild(block);
 }
 
+lines.push("links, math, callouts");
+ok("a markdown link survives",
+   trip("See [Advance](https://tomadelstein.substack.com)."),
+   "See [Advance](https://tomadelstein.substack.com).");
+contains("inline math survives", trip("Energy is $E=mc^2$ here."), "$E=mc^2$");
+ok("a second math trip is stable",
+   trip(trip("Energy is $E=mc^2$ here.")),
+   trip("Energy is $E=mc^2$ here."));
+contains("a note callout keeps its kind",
+   trip("> [!NOTE]\n> Read the file first."),
+   "[!NOTE]");
+contains("a note callout keeps the body",
+   trip("> [!NOTE]\n> Read the file first."),
+   "Read the file first.");
+contains("a warning callout keeps its kind",
+   trip("> [!WARNING]\n> Keep a copy."),
+   "[!WARNING]");
+
 lines.push("the file keeps its shape");
 ok("tight list markers", trip("- one\n- two"), "- one\n- two");
 ok("numbered list", trip("1. one\n2. two"), "1. one\n2. two");

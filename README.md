@@ -1,6 +1,6 @@
 # Markdown in Chrome
 
-**Version 0.3.3.** A Chrome extension that opens a markdown file, renders it on a page you can type into, and writes your edits back to disk. No terminal, no Python, nothing to install but the extension.
+**Version 0.3.4.** A Chrome extension that opens a markdown file, renders it on a page you can type into, and writes your edits back to disk. No terminal, no Python, nothing to install but the extension.
 
 In 2004 John Gruber conceived of markdown so a person could read a file as-is, without it looking marked up. Twenty-two years later AI models hand you `.md` files full of pound signs and pipe tables, and it takes two programs to deal with one file: one that shows the formatting but doesn't let you edit it, and another that lets you write but hides the formatting. This extension is both of them.
 
@@ -144,6 +144,10 @@ That is how you tell what a reader will get before anyone accepts the changes.
 ### 10. Bold, italic, underline
 
 **Ctrl+B**, **Ctrl+I**, and **Ctrl+U** (Cmd on a Mac) apply to the word under the caret, or to a selection. Click in a word and press the key. A paragraph whose wording did not change keeps those tags on save. A paragraph whose wording did change is marked in red; the emphasis on that paragraph is rebuilt as words.
+
+**Ctrl+K** turns the word or the selection into a link. **Ctrl+click** (Cmd+click on a Mac) opens it. A regular click stays on the page.
+
+`$E=mc^2$` is inline math. GitHub callouts (`> [!NOTE]`, TIP, IMPORTANT, WARNING, CAUTION) show as labeled blocks.
 
 ## What 0.3.0 adds
 

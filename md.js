@@ -12,8 +12,71 @@ import { marked } from "./lib/marked.esm.js";
 import TurndownService from "./lib/turndown.es.js";
 import { gfm } from "./lib/turndown-gfm.es.js";
 
+const ALERT_KINDS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"];
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+const alertExt = {
+  name: "alert",
+  level: "block",
+  start(src) {
+    const m = src.match(/^ {0,3}>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+    return m ? m.index : undefined;
+  },
+  tokenizer(src) {
+    const m = src.match(
+      /^ {0,3}>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\][ \t]*\n((?: {0,3}>[^\n]*(?:\n|$))*)/i
+    );
+    if (!m) return;
+    const kind = m[1].toUpperCase();
+    const body = m[2].replace(/^ {0,3}>\s?/gm, "").replace(/\n$/, "");
+    return { type: "alert", raw: m[0], kind, text: body, tokens: this.lexer.blockTokens(body) };
+  },
+  renderer(token) {
+    const inner = this.parser.parse(token.tokens);
+    const label = token.kind.charAt(0) + token.kind.slice(1).toLowerCase();
+    return `<aside class="md-callout md-callout-${token.kind.toLowerCase()}" data-kind="${token.kind}"><p class="md-callout-label">${label}</p>${inner}</aside>\n`;
+  },
+};
+
+const mathExt = {
+  name: "inlinemath",
+  level: "inline",
+  start(src) {
+    for (let i = 0; i < src.length; i++) {
+      if (src[i] !== "$") continue;
+      if (i > 0 && src[i - 1] === "\\") continue;
+      if (src[i + 1] === "$") continue;
+      return i;
+    }
+    return undefined;
+  },
+  tokenizer(src) {
+    if (src[0] !== "$" || src[1] === "$") return;
+    const m = src.match(/^\$([^$\n]+?)\$/);
+    if (!m || !m[1].trim()) return;
+    return { type: "inlinemath", raw: m[0], text: m[1] };
+  },
+  renderer(token) {
+    const shown = escapeHtml(token.text);
+    return `<span class="md-math" data-md="$${shown}$">${shown}</span>`;
+  },
+};
+
+let markedReady = false;
+
 export function configureMarked() {
-  marked.setOptions({ gfm: true, breaks: false });
+  if (!markedReady) {
+    marked.setOptions({ gfm: true, breaks: false });
+    marked.use({ extensions: [alertExt, mathExt] });
+    markedReady = true;
+  }
   return marked;
 }
 
@@ -30,6 +93,32 @@ export function makeTurndown() {
   // as a column of loose paragraphs. Editing one word in a table would destroy
   // it.
   turndown.use(gfm);
+
+  turndown.addRule("callout", {
+    filter(node) {
+      return node.nodeName === "ASIDE" && node.classList &&
+             node.classList.contains("md-callout");
+    },
+    replacement(content, node) {
+      const raw = (node.getAttribute("data-kind") || "NOTE").toUpperCase();
+      const kind = ALERT_KINDS.includes(raw) ? raw : "NOTE";
+      const lines = String(content || "").replace(/^\n+|\n+$/g, "").split("\n");
+      const body = lines.map((l) => "> " + l).join("\n");
+      return `\n\n> [!${kind}]\n${body}\n\n`;
+    },
+  });
+
+  turndown.addRule("inlinemath", {
+    filter(node) {
+      return node.nodeName === "SPAN" && node.classList &&
+             node.classList.contains("md-math");
+    },
+    replacement(content, node) {
+      const raw = node.getAttribute("data-md");
+      if (raw) return raw;
+      return `$${content}$`;
+    },
+  });
 
   // The two edit marks have to survive the trip back to disk as the same HTML
   // they went out as. Anything else and the accept and revert passes cannot

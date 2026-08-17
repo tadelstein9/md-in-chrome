@@ -130,3 +130,52 @@ export function toggleInline(kind, root) {
   }
   return block;
 }
+
+/** http(s), mailto, in-page, or a relative path. Nothing that runs code. */
+export function safeHref(href) {
+  const s = String(href || "").trim();
+  if (!s) return null;
+  if (/^(javascript|data|vbscript|file):/i.test(s)) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (/^mailto:/i.test(s)) return s;
+  if (s.startsWith("#")) return s;
+  if (s.startsWith("/") || s.startsWith("./") || s.startsWith("../")) return s;
+  if (/^[\w.-]+\.[a-z]{2,}([/:?#].*)?$/i.test(s)) return "https://" + s;
+  return null;
+}
+
+/** Wrap the selection (or the word at the caret) in a link. */
+export function wrapLink(href, root) {
+  const url = safeHref(href);
+  const sel = window.getSelection();
+  if (!url || !sel || !sel.rangeCount) return null;
+
+  let node = sel.anchorNode;
+  if (node && node.nodeType === 3) node = node.parentElement;
+  const block = node && node.closest && node.closest("[data-block]");
+  if (!block || (root && !root.contains(block))) return null;
+  if (block.dataset.locked === "1") return null;
+
+  const already = enclosing(sel.anchorNode, "A", block);
+  if (already) {
+    already.setAttribute("href", url);
+    return block;
+  }
+
+  const range = rangeForWord(sel);
+  if (range.collapsed) return null;
+  const a = document.createElement("a");
+  a.setAttribute("href", url);
+  try {
+    range.surroundContents(a);
+  } catch {
+    a.appendChild(range.extractContents());
+    range.insertNode(a);
+  }
+  sel.removeAllRanges();
+  const next = document.createRange();
+  next.selectNodeContents(a);
+  next.collapse(false);
+  sel.addRange(next);
+  return block;
+}

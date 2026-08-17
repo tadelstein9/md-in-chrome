@@ -18,16 +18,27 @@ That gap is what this extension closes. The full argument is in:
 
 ## Install (about two minutes)
 
-Not on the Chrome Web Store yet. Load it unpacked:
+Not on the Chrome Web Store yet. The script puts the extension in a stable folder. Chrome still needs one click.
 
-1. Go to **[github.com/tadelstein9/md-in-chrome](https://github.com/tadelstein9/md-in-chrome)**.
-2. Click green **Code → Download ZIP** (or `git clone` this repo). Unzip if needed.
-3. In Chrome (or Edge), open `chrome://extensions` (or `edge://extensions`).
-4. Turn **Developer mode** on (top right).
-5. Click **Load unpacked** and choose the folder that contains `manifest.json`.
-6. Pin **Markdown in Chrome** on the toolbar if you like. Click the icon — the editor opens in its own tab.
+**Linux** (from this folder):
 
-To update later: pull or re-download, then on `chrome://extensions` click **Reload** on the card. Refresh the editor tab after that.
+```
+./install.sh
+```
+
+That copies the program to `~/.local/share/md-in-chrome` and opens `chrome://extensions`. Turn **Developer mode** on. **Load unpacked**. Choose that folder. Do not save your documents there.
+
+**Windows** (PowerShell, from this folder):
+
+```
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+That copies the program to `%LOCALAPPDATA%\md-in-chrome` and opens the extensions page. Same three clicks: Developer mode, Load unpacked, that folder.
+
+To update later: run the script again, then **Reload** on the card at `chrome://extensions`. Refresh the editor tab.
+
+By hand, without the script: **Code → Download ZIP**, unzip, `chrome://extensions` → Developer mode → **Load unpacked** → the folder that holds `manifest.json`.
 
 ### Optional: zip for friends
 
